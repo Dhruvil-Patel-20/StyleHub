@@ -7,8 +7,8 @@ const app = express();
 app.use(
   cors({
     origin: [
-      "http://localhost:3000",          // local development
-      "https://style-hub-rouge.vercel.app/",    // replace with your Vercel URL
+      "http://localhost:3000",
+      "https://style-hub-rouge.vercel.app",
     ],
     credentials: true,
   })
