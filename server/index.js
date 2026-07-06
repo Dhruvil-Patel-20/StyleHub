@@ -7,13 +7,8 @@ const app = express();
 app.use(
   cors({
     origin: [
-<<<<<<< HEAD
       "http://localhost:3000",
       "https://style-hub-rouge.vercel.app",
-=======
-      "http://localhost:3000",          // local development
-      "https://style-hub-rouge.vercel.app/",    // replace with your Vercel URL
->>>>>>> da4049d (Update API URL and CORS configuration)
     ],
     credentials: true,
   })
@@ -30,8 +25,4 @@ app.use("/api/users", require("./routes/users"));
 
 app.listen(process.env.PORT, () =>
   console.log(`Server running on port ${process.env.PORT}`)
-<<<<<<< HEAD
 );
-=======
-);
->>>>>>> da4049d (Update API URL and CORS configuration)
