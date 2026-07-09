@@ -1,6 +1,9 @@
 const router = require('express').Router();
 const Razorpay = require('razorpay');
+const Stripe = require('stripe');
 const { protect } = require('../middleware/auth');
+
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Create Razorpay order
 router.post('/razorpay/create-order', protect, async (req, res) => {

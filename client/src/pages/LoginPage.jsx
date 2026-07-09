@@ -23,6 +23,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -38,6 +40,23 @@ export default function LoginPage() {
       toast.error(err.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!form.email) {
+      toast.error('Please enter your email address first');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await api.post('/auth/forgot-password', { email: form.email });
+      toast.success('Password reset email sent. Please check your inbox.');
+      setShowForgot(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Unable to send reset email');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -132,7 +151,7 @@ export default function LoginPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-medium text-white/70">Password</label>
-                    <button type="button" className="text-xs text-white/80 hover:text-white transition-colors">Forgot?</button>
+                    <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-white/80 hover:text-white transition-colors">Forgot?</button>
                   </div>
                   <div className="relative group">
                     <span className="absolute inset-y-0 left-3 flex items-center text-white/40 group-focus-within:text-white/70 transition-colors pointer-events-none">
@@ -204,6 +223,27 @@ export default function LoginPage() {
                   </button>
                 </div>
               </form>
+
+              {showForgot && (
+                <div className="mt-3 rounded-xl border border-violet-400/30 bg-slate-950/70 p-3 text-sm text-white/90">
+                  <p className="mb-2 text-xs font-semibold text-violet-200">Reset your password</p>
+                  <p className="mb-2 text-xs text-white/70">We will send a reset link to the email you enter below.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="Enter your email"
+                      className="flex-1 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/50"
+                    />
+                    <button type="button" onClick={handleForgotPassword} disabled={forgotLoading}
+                      className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                      {forgotLoading ? '...' : 'Send'}
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => setShowForgot(false)} className="mt-2 text-xs text-white/60 hover:text-white">Cancel</button>
+                </div>
+              )}
 
               <p className="text-center text-xs text-white/50 mt-4">
                 Don't have an account?{' '}

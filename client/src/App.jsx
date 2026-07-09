@@ -32,6 +32,8 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminProductsPage from './pages/admin/AdminProductsPage';
 import AdminProductFormPage from './pages/admin/AdminProductFormPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
+import AdminBannersPage from './pages/admin/AdminBannersPage';
+import AdminCouponsPage from './pages/admin/AdminCouponsPage';
 import AdminPanelPage from './pages/admin/AdminPanelPage';
 import SellerDashboardPage from './pages/SellerDashboardPage';
 
@@ -52,6 +54,8 @@ function MainLayout() {
           <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPanelPage /></ProtectedRoute>} />
           <Route path="/admin/dashboard" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/banners" element={<ProtectedRoute adminOnly><AdminBannersPage /></ProtectedRoute>} />
+          <Route path="/admin/coupons" element={<ProtectedRoute adminOnly><AdminCouponsPage /></ProtectedRoute>} />
           <Route path="/admin/products" element={<ProtectedRoute adminOnly><AdminProductsPage /></ProtectedRoute>} />
           <Route path="/admin/products/new" element={<ProtectedRoute adminOnly><AdminProductFormPage /></ProtectedRoute>} />
           <Route path="/admin/products/:id/edit" element={<ProtectedRoute adminOnly><AdminProductFormPage /></ProtectedRoute>} />

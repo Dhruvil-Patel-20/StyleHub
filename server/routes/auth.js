@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const supabase = require('../supabase');
 const { protect } = require('../middleware/auth');
+const emailService = require('../services/email');
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
@@ -24,6 +25,24 @@ router.post('/register', async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    await emailService.sendEmailTemplate({
+      type: 'welcome',
+      to: email,
+      data: { name, email, role },
+    });
+
+    await emailService.sendEmailTemplate({
+      type: 'verifyEmail',
+      to: email,
+      data: {
+        name,
+        email,
+        role,
+        verificationUrl: `${process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000'}/verify-email`,
+      },
+    });
+
     res.status(201).json({ ...user, token: generateToken(user.id) });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -39,6 +58,50 @@ router.post('/login', async (req, res) => {
 
     const { password: _, ...safeUser } = user;
     res.json({ ...safeUser, token: generateToken(user.id) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const { data: user } = await supabase.from('users').select('id, name, email, role').eq('email', email).single();
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    await emailService.sendEmailTemplate({
+      type: 'resetPassword',
+      to: user.email,
+      data: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        resetUrl: `${process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000'}/reset-password?email=${encodeURIComponent(user.email)}`,
+      },
+    });
+
+    res.json({ message: 'Password reset email sent' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
+
+    const hashed = await bcrypt.hash(password, 10);
+    const { data: user, error } = await supabase
+      .from('users')
+      .update({ password: hashed })
+      .eq('email', email)
+      .select('id, name, email, role')
+      .single();
+
+    if (error || !user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({ message: 'Password reset successful' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

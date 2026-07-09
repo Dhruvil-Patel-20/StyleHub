@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const statusColor = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -8,11 +9,14 @@ const statusColor = {
   shipped: 'bg-purple-100 text-purple-700',
   delivered: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
+  returned: 'bg-red-100 text-red-800',
 };
-const statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+const statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
+const getDisplayStatus = (order) => order.return_status === 'refunded' ? 'returned' : order.status;
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -23,7 +27,7 @@ export default function OrdersPage() {
   }, []);
 
   const filtered = orders
-    .filter(o => !statusFilter || o.status === statusFilter)
+    .filter(o => !statusFilter || getDisplayStatus(o) === statusFilter)
     .filter(o => !search || o.id.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sort === 'newest') return new Date(b.created_at) - new Date(a.created_at);
@@ -92,8 +96,32 @@ export default function OrdersPage() {
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-gray-900">${Number(order.total_price).toFixed(2)}</p>
-                  <span className={`text-xs px-2 py-1 rounded-full capitalize mt-1 inline-block ${statusColor[order.status]}`}>{order.status}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full capitalize mt-1 inline-block ${statusColor[getDisplayStatus(order)]}`}>{getDisplayStatus(order)}</span>
                   {order.is_paid && <p className="text-xs text-green-600 mt-1">✓ Paid</p>}
+                  {/* Cancel button inline */}
+                  {user && user.id === order.user_id && !['shipped', 'delivered', 'cancelled'].includes(order.status) && (
+                    <div className="mt-2">
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!confirm('Cancel this order?')) return;
+                          try {
+                            await api.put(`/orders/${order.id}/cancel`);
+                            // refresh list
+                            const { data } = await api.get('/orders/myorders');
+                            setOrders(data);
+                            alert('Order cancelled');
+                          } catch (err) {
+                            alert(err?.response?.data?.message || err.message || 'Failed to cancel order');
+                          }
+                        }}
+                        className="text-sm bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </Link>

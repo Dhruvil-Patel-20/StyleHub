@@ -1,3 +1,112 @@
+# ==========================
+# Dependencies
+# ==========================
 node_modules/
-dist/
+client/node_modules/
+server/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+ENV/
+
+# ==========================
+# Environment Variables
+# ==========================
 .env
+.env.*
+!.env.example
+
+client/.env
+server/.env
+recommandation/.env
+
+# ==========================
+# Build Output
+# ==========================
+dist/
+build/
+client/dist/
+client/build/
+
+# Vite
+.vite/
+
+# ==========================
+# Logs
+# ==========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================
+# Python Model Artifacts
+# ==========================
+recommandation/saved_models/
+*.h5
+*.keras
+*.pb
+*.ckpt
+*.tflite
+*.index
+*.data-*
+
+# ==========================
+# Temporary Files
+# ==========================
+tmp/
+temp/
+.cache/
+
+# ==========================
+# Uploads
+# ==========================
+server/uploads/
+!server/uploads/.gitkeep
+
+# ==========================
+# Database Files
+# ==========================
+*.sqlite
+*.sqlite3
+*.db
+
+# ==========================
+# Coverage
+# ==========================
+coverage/
+.nyc_output/
+htmlcov/
+
+# ==========================
+# IDE
+# ==========================
+.vscode/
+.idea/
+*.iml
+
+# ==========================
+# OS Files
+# ==========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================
+# Misc
+# ==========================
+*.swp
+*.swo
+*.bak

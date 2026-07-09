@@ -4,6 +4,7 @@ import api from '../utils/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
+import ProductCard from '../components/product/ProductCard';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -17,11 +18,16 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [review, setReview] = useState({ rating: 5, comment: '' });
   const [loading, setLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState([]);
 
   useEffect(() => {
     api.get(`/products/${id}`)
       .then(res => { setProduct(res.data); setLoading(false); })
       .catch(() => setLoading(false));
+
+    api.get(`/recommendations?currentProductId=${id}&topK=4`)
+      .then(res => setRecommendations(res.data))
+      .catch(() => setRecommendations([]));
   }, [id]);
 
   const handleAddToCart = () => {
@@ -164,6 +170,17 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
+
+      {recommendations.length > 0 && (
+        <div className="mt-12">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">You may also like</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {recommendations.map((item) => (
+              <ProductCard key={item.id} product={item} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Reviews */}
       <div className="mt-12">

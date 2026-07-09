@@ -321,7 +321,42 @@ async function seed() {
     console.error('Seed failed:', error.message);
     process.exit(1);
   }
-  console.log(`✅ Seeded ${products.length} products across 8 categories.`);
+
+  const coupons = [
+    {
+      code: 'STYLE10',
+      description: '10% off first order with free shipping',
+      type: 'percent',
+      value: 10,
+      min_order_value: 0,
+      max_uses: null,
+      max_per_user: null,
+      one_per_user: true,
+      first_order_only: true,
+      free_shipping: true,
+      is_active: true,
+    },
+    {
+      code: 'SHIPFREE',
+      description: 'Free shipping on orders over $50',
+      type: 'free_shipping',
+      value: 0,
+      min_order_value: 50,
+      max_uses: null,
+      max_per_user: null,
+      one_per_user: false,
+      first_order_only: false,
+      is_active: true,
+    },
+  ];
+
+  const { error: couponsError } = await supabase.from('coupons').upsert(coupons, { onConflict: ['code'] });
+  if (couponsError) {
+    console.error('Coupon seed failed:', couponsError.message);
+    process.exit(1);
+  }
+
+  console.log(`✅ Seeded ${products.length} products across 8 categories and ensured coupon offers.`);
   process.exit(0);
 }
 

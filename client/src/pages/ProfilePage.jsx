@@ -37,6 +37,13 @@ export default function ProfilePage() {
     if (activeTab === 'wishlist') fetchWishlist();
   }, [activeTab]);
 
+  useEffect(() => {
+    if (user) {
+      fetchOrders();
+      if (user.wishlist?.length) fetchWishlist();
+    }
+  }, [user?.id]);
+
   const fetchOrders = async () => {
     setLoadingOrders(true);
     try {
@@ -103,6 +110,11 @@ export default function ProfilePage() {
 
   const avatarLetter = user?.name?.charAt(0).toUpperCase();
   const roleColor = user?.role === 'admin' ? 'bg-red-100 text-red-700' : user?.role === 'seller' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700';
+  const totalSpend = orders.filter(o => o.is_paid).reduce((sum, order) => sum + Number(order.total_price || 0), 0);
+  const deliveredOrders = orders.filter(o => o.status === 'delivered').length;
+  const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'processing').length;
+  const deliveryRate = orders.length ? Math.round((deliveredOrders / orders.length) * 100) : 0;
+  const recentOrders = [...orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -169,51 +181,102 @@ export default function ProfilePage() {
         {/* ── ACCOUNT TAB ── */}
         {activeTab === 'account' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-5">Personal Information</h2>
-              <form onSubmit={handleUpdateProfile} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                    <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                    <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
-                  </div>
-                </div>
+            <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 rounded-2xl shadow p-6 text-white">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Role</label>
-                  <input value={user?.role} disabled
-                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 bg-gray-50 text-gray-400 text-sm capitalize cursor-not-allowed" />
+                  <p className="text-sm uppercase tracking-[0.3em] text-indigo-100">Account overview</p>
+                  <h2 className="text-2xl font-bold mt-2">Welcome back, {user?.name}</h2>
+                  <p className="text-sm text-indigo-100 mt-2 max-w-2xl">Your profile is now tailored to keep your orders, wishlist, and account preferences in one polished hub.</p>
                 </div>
-                <div className="flex justify-end">
-                  <button type="submit" disabled={saving}
-                    className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg hover:bg-indigo-700 transition text-sm font-medium disabled:opacity-50">
-                    {saving ? 'Saving...' : 'Save Changes'}
-                  </button>
+                <div className="rounded-xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
+                  <p className="font-semibold">{user?.role === 'client' ? 'Client insights' : user?.role === 'seller' ? 'Seller insights' : 'Admin insights'}</p>
+                  <p className="text-indigo-100 mt-1">{deliveryRate}% delivery success</p>
                 </div>
-              </form>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+                <div className="rounded-xl bg-white/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Orders</p>
+                  <p className="text-2xl font-bold mt-1">{orders.length}</p>
+                </div>
+                <div className="rounded-xl bg-white/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Spend</p>
+                  <p className="text-2xl font-bold mt-1">${totalSpend.toFixed(2)}</p>
+                </div>
+                <div className="rounded-xl bg-white/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Pending</p>
+                  <p className="text-2xl font-bold mt-1">{pendingOrders}</p>
+                </div>
+              </div>
             </div>
 
-            {/* Quick Links */}
-            <div className="bg-white rounded-2xl shadow p-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Links</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: 'My Orders', icon: '📦', to: '/orders' },
-                  { label: 'Wishlist', icon: '❤️', to: '/wishlist' },
-                  { label: 'Cart', icon: '🛒', to: '/cart' },
-                  { label: 'Browse Products', icon: '🛍️', to: '/products' },
-                ].map(l => (
-                  <Link key={l.label} to={l.to}
-                    className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition text-center">
-                    <span className="text-2xl">{l.icon}</span>
-                    <span className="text-xs font-medium text-gray-700">{l.label}</span>
-                  </Link>
-                ))}
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
+              <div className="bg-white rounded-2xl shadow p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold text-gray-800">Personal Information</h2>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${roleColor}`}>{user?.role}</span>
+                </div>
+                <form onSubmit={handleUpdateProfile} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                      <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                      <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Account Role</label>
+                    <input value={user?.role} disabled
+                      className="w-full border border-gray-200 rounded-lg px-4 py-2.5 bg-gray-50 text-gray-400 text-sm capitalize cursor-not-allowed" />
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="submit" disabled={saving}
+                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg hover:bg-indigo-700 transition text-sm font-medium disabled:opacity-50">
+                      {saving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl shadow p-6">
+                  <h2 className="text-lg font-bold text-gray-800 mb-4">Recent Activity</h2>
+                  <div className="space-y-3">
+                    {recentOrders.length === 0 ? (
+                      <p className="text-sm text-gray-500">Order activity will show here once you place your first purchase.</p>
+                    ) : recentOrders.map(order => (
+                      <div key={order.id} className="flex items-center justify-between rounded-xl border border-gray-100 p-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">Order #{order.id.slice(-8).toUpperCase()}</p>
+                          <p className="text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full capitalize ${statusColors[order.status]}`}>{order.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow p-6">
+                  <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Links</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'My Orders', icon: '📦', to: '/orders' },
+                      { label: 'Wishlist', icon: '❤️', to: '/wishlist' },
+                      { label: 'Cart', icon: '🛒', to: '/cart' },
+                      { label: 'Browse Products', icon: '🛍️', to: '/products' },
+                    ].map(l => (
+                      <Link key={l.label} to={l.to}
+                        className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition text-center">
+                        <span className="text-2xl">{l.icon}</span>
+                        <span className="text-xs font-medium text-gray-700">{l.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

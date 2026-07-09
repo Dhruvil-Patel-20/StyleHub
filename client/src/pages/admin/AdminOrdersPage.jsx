@@ -3,15 +3,16 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import { toast } from 'react-toastify';
 
-const statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+const statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
 const statusColor = {
   pending: 'text-yellow-600', processing: 'text-blue-600',
-  shipped: 'text-purple-600', delivered: 'text-green-600', cancelled: 'text-red-600',
+  shipped: 'text-purple-600', delivered: 'text-green-600', cancelled: 'text-red-600', returned: 'text-red-800',
 };
 const statusBg = {
   pending: 'bg-yellow-100 text-yellow-700', processing: 'bg-blue-100 text-blue-700',
-  shipped: 'bg-purple-100 text-purple-700', delivered: 'bg-green-100 text-green-700', cancelled: 'bg-red-100 text-red-700',
+  shipped: 'bg-purple-100 text-purple-700', delivered: 'bg-green-100 text-green-700', cancelled: 'bg-red-100 text-red-700', returned: 'bg-red-100 text-red-800',
 };
+const getDisplayStatus = (o) => o.return_status === 'refunded' ? 'returned' : o.status;
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
@@ -26,16 +27,29 @@ export default function AdminOrdersPage() {
   }, []);
 
   const updateStatus = async (id, status) => {
+    console.log('🔵 [ADMIN] Updating order status:', { id, status });
     try {
+      console.log(`📤 [ADMIN] Sending PUT request to /orders/${id}/status with status=${status}`);
       const { data } = await api.put(`/orders/${id}/status`, { status });
-      setOrders(orders.map(o => o.id === id ? { ...o, status: data.status } : o));
+      console.log('✅ [ADMIN] Status update successful:', data);
+      setOrders(orders.map(o => o.id === id ? { ...o, ...data } : o));
       toast.success('Status updated');
-    } catch { toast.error('Update failed'); }
+    } catch (err) {
+      console.error('❌ [ADMIN] Status update failed:', {
+        error: err,
+        message: err?.message,
+        response: err?.response?.data,
+        status: err?.response?.status,
+        statusText: err?.response?.statusText,
+      });
+      const msg = err?.response?.data?.message || err?.message || 'Update failed';
+      toast.error(msg);
+    }
   };
 
   const filtered = orders
     .filter(o => !search || o.id.toLowerCase().includes(search.toLowerCase()) || o.users?.name?.toLowerCase().includes(search.toLowerCase()) || o.users?.email?.toLowerCase().includes(search.toLowerCase()))
-    .filter(o => !statusFilter || o.status === statusFilter)
+    .filter(o => !statusFilter || getDisplayStatus(o) === statusFilter)
     .filter(o => !paidFilter || (paidFilter === 'paid' ? o.is_paid : !o.is_paid))
     .filter(o => !paymentFilter || o.payment_method === paymentFilter)
     .sort((a, b) => {
@@ -90,7 +104,7 @@ export default function AdminOrdersPage() {
       {/* Status summary pills */}
       <div className="flex flex-wrap gap-2 mb-4">
         {statuses.map(s => {
-          const count = orders.filter(o => o.status === s).length;
+          const count = orders.filter(o => getDisplayStatus(o) === s).length;
           return (
             <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
               className={`px-3 py-1 rounded-full text-xs font-medium border capitalize transition ${statusFilter === s ? 'bg-indigo-600 text-white border-indigo-600' : `${statusBg[s]} border-transparent`}`}>
@@ -137,9 +151,10 @@ export default function AdminOrdersPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <select value={o.status} onChange={e => updateStatus(o.id, e.target.value)}
-                    className={`border rounded px-2 py-1 text-xs capitalize ${statusColor[o.status]}`}>
-                    {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                  <select value={getDisplayStatus(o)} onChange={e => updateStatus(o.id, e.target.value)}
+                    className={`border rounded px-2 py-1 text-xs capitalize ${statusColor[getDisplayStatus(o)]}`}>
+                    {statuses.filter(s => s !== 'returned').map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+                    {getDisplayStatus(o) === 'returned' && <option value="returned">returned</option>}
                   </select>
                 </td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>

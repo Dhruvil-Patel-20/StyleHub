@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
+import BannerSlider from '../components/layout/BannerSlider';
 import ProductCard from '../components/product/ProductCard';
 
 const categories = [
@@ -38,7 +39,10 @@ const stories = [
 
 export default function HomePage() {
   const [featured, setFeatured] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true);
   const [catIndex, setCatIndex] = useState(0);
   const [storyIndex, setStoryIndex] = useState(0);
   const visibleCount = 5;
@@ -54,6 +58,15 @@ export default function HomePage() {
       .then(res => setFeatured(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    api.get('/recommendations?topK=4')
+      .then(res => setRecommendations(res.data))
+      .catch(() => setRecommendations([]))
+      .finally(() => setRecommendationsLoading(false));
+
+    api.get('/banners')
+      .then(res => setBanners(res.data))
+      .catch(() => setBanners([]));
   }, []);
 
   return (
@@ -93,6 +106,11 @@ export default function HomePage() {
           </div>
         </div>
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white opacity-60 animate-bounce text-2xl">↓</div>
+      </div>
+
+      {/* Active Home Banners */}
+      <div className="max-w-7xl mx-auto px-4 py-10">
+        <BannerSlider banners={banners} />
       </div>
 
       {/* Categories */}
@@ -138,6 +156,24 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {recommendations.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">Recommended for you</p>
+              <h2 className="text-2xl font-bold text-gray-800">Personalized picks</h2>
+            </div>
+          </div>
+          {recommendationsLoading ? (
+            <div className="text-center py-8 text-gray-400">Loading your picks...</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {recommendations.map(p => <ProductCard key={p.id} product={p} />)}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Featured Products */}
       <div className="max-w-7xl mx-auto px-4 pb-12">

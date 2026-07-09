@@ -10,7 +10,9 @@ const statusColors = {
   shipped: 'bg-indigo-100 text-indigo-800',
   delivered: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
+  returned: 'bg-red-100 text-red-900',
 };
+const getDisplayStatus = (o) => o.return_status === 'refunded' ? 'returned' : o.status;
 
 const tabs = ['overview', 'products', 'orders', 'inventory', 'reviews'];
 
@@ -53,11 +55,23 @@ export default function SellerDashboardPage() {
   };
 
   // Derived stats
-  const totalRevenue = orders.filter(o => o.is_paid).reduce((s, o) => s + o.total_price, 0);
+  const totalRevenue = orders.filter(o => o.is_paid && o.return_status !== 'refunded').reduce((s, o) => s + Number(o.total_price || 0), 0);
   const pendingOrders = orders.filter(o => o.status === 'pending').length;
+  const processingOrders = orders.filter(o => o.status === 'processing').length;
+  const deliveredOrders = orders.filter(o => o.status === 'delivered').length;
   const lowStock = products.filter(p => p.stock <= 5).length;
   const allReviews = products.flatMap(p => (p.reviews || []).map(r => ({ ...r, productName: p.name })));
   const avgRating = products.length ? (products.reduce((s, p) => s + (p.rating || 0), 0) / products.length).toFixed(1) : '0.0';
+  const avgOrderValue = orders.length ? (totalRevenue / orders.length).toFixed(2) : '0.00';
+  const deliveryRate = orders.length ? Math.round((deliveredOrders / orders.length) * 100) : 0;
+  const statusBreakdown = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'].map(status => ({
+    status,
+    count: orders.filter(o => getDisplayStatus(o) === status).length,
+  }));
+  const deliveryMethods = ['standard', 'express', 'nextday'].map(method => ({
+    method,
+    count: orders.filter(o => o.delivery_method === method).length,
+  }));
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -100,7 +114,20 @@ export default function SellerDashboardPage() {
         {/* ── OVERVIEW ── */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Stat Cards */}
+            <div className="bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.3em] text-purple-100">Seller momentum</p>
+                  <h2 className="text-2xl font-bold mt-2">Your storefront is trending — keep the offers rolling.</h2>
+                  <p className="text-sm text-purple-100 mt-2 max-w-2xl">Bundle top sellers, keep inventory healthy, and protect your delivery promises to strengthen repeat purchases.</p>
+                </div>
+                <div className="rounded-xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
+                  <p className="font-semibold">Live offer</p>
+                  <p className="text-purple-100 mt-1">Free shipping for bundles this week</p>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: 'My Products', value: products.length, icon: '🛍️', color: 'from-purple-500 to-purple-600' },
@@ -116,7 +143,6 @@ export default function SellerDashboardPage() {
               ))}
             </div>
 
-            {/* Alert Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 flex items-center gap-4">
                 <div className="text-4xl">⏳</div>
@@ -136,7 +162,47 @@ export default function SellerDashboardPage() {
               </div>
             </div>
 
-            {/* Recent Orders */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white rounded-xl shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-800">Delivery Analysis</h2>
+                  <span className="text-sm text-gray-500">{deliveryRate}% delivered</span>
+                </div>
+                <div className="space-y-3">
+                  {deliveryMethods.map(item => (
+                    <div key={item.method}>
+                      <div className="flex justify-between text-sm text-gray-600 mb-1">
+                        <span className="capitalize">{item.method}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-indigo-500 h-2 rounded-full" style={{ width: `${orders.length ? (item.count / orders.length) * 100 : 0}%` }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-800">Purchase Tracking</h2>
+                  <span className="text-sm text-gray-500">{totalRevenue.toFixed(2)} revenue</span>
+                </div>
+                <div className="space-y-3">
+                  {statusBreakdown.map(item => (
+                    <div key={item.status}>
+                      <div className="flex justify-between text-sm text-gray-600 mb-1">
+                        <span className="capitalize">{item.status}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${item.status === 'delivered' ? 'bg-green-500' : item.status === 'processing' || item.status === 'shipped' ? 'bg-blue-500' : item.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${orders.length ? (item.count / orders.length) * 100 : 0}%`, opacity: item.status === 'returned' ? 0.6 : 1 }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-800">Recent Orders</h2>
@@ -160,7 +226,7 @@ export default function SellerDashboardPage() {
                           <td className="px-4 py-3 font-mono text-xs">{o.id.slice(0, 8)}...</td>
                           <td className="px-4 py-3">{o.users?.name || '—'}</td>
                           <td className="px-4 py-3 font-semibold">${o.total_price.toFixed(2)}</td>
-                          <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[o.status]}`}>{o.status}</span></td>
+                          <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[getDisplayStatus(o)]}`}>{getDisplayStatus(o)}</span></td>
                           <td className="px-4 py-3 text-gray-500">{new Date(o.created_at).toLocaleDateString()}</td>
                         </tr>
                       ))}
@@ -170,7 +236,6 @@ export default function SellerDashboardPage() {
               )}
             </div>
 
-            {/* Top Products */}
             <div className="bg-white rounded-xl shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-800">Top Rated Products</h2>
@@ -307,7 +372,7 @@ export default function SellerDashboardPage() {
                 className="border rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-purple-400" />
               <select value={orderStatusFilter} onChange={e => setOrderStatusFilter(e.target.value)} className="border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-purple-400">
                 <option value="">All Statuses</option>
-                {['pending','processing','shipped','delivered','cancelled'].map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+                {['pending','processing','shipped','delivered','cancelled','returned'].map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
               </select>
               {(search || orderStatusFilter) && (
                 <button onClick={() => { setSearch(''); setOrderStatusFilter(''); }} className="text-xs text-red-500 hover:underline">Clear</button>
@@ -354,7 +419,7 @@ export default function SellerDashboardPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[o.status]}`}>{o.status}</span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[getDisplayStatus(o)]}`}>{getDisplayStatus(o)}</span>
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>
                       </tr>

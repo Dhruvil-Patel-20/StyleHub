@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
@@ -29,9 +29,15 @@ export default function CheckoutPage() {
   const [cardDetails, setCardDetails] = useState({ number: '', expiry: '', cvv: '', name: '' });
   const [loading, setLoading] = useState(false);
 
+  const [couponCode, setCouponCode] = useState('');
+  const [couponObj, setCouponObj] = useState(null);
+  const [discount, setDiscount] = useState(0);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState(null);
+
   const deliveryOption = DELIVERY_OPTIONS.find(d => d.id === delivery);
   const deliveryCost = deliveryOption.freeOver !== null && total >= deliveryOption.freeOver ? 0 : deliveryOption.price;
-  const orderTotal = total + deliveryCost;
+  const orderTotal = Math.max(0, total + deliveryCost - (discount || 0));
 
   const handleChange = e => setAddress({ ...address, [e.target.name]: e.target.value });
   const handleCard = e => setCardDetails({ ...cardDetails, [e.target.name]: e.target.value });
@@ -56,13 +62,15 @@ export default function CheckoutPage() {
       quantity: i.quantity,
       size: i.size,
       color: i.color,
-      is_returnable: i.is_returnable === true,
-      return_window_days: i.is_returnable === true ? (i.return_window_days ?? 7) : null,
+      is_returnable: i.is_returnable !== false,
+      return_window_days: i.return_window_days ?? 7,
     })),
     shippingAddress: address,
     deliveryMethod: delivery,
     paymentMethod: payment,
     totalPrice: orderTotal,
+    couponCode: couponObj?.code || null,
+    discountAmount: discount || 0,
   });
 
   const handleRazorpay = async () => {
@@ -109,6 +117,26 @@ export default function CheckoutPage() {
     new window.Razorpay(options).open();
   };
 
+  const applyCouponCode = async (code) => {
+    if (!code) return;
+    try {
+      setApplyingCoupon(true);
+      setCouponError(null);
+      const res = await api.get('/coupons/validate', { params: { code, amount: total, deliveryCost } });
+      setCouponObj(res.data.coupon);
+      setDiscount(res.data.discount || 0);
+      setCouponCode(code.toUpperCase());
+      toast.success('Coupon applied');
+    } catch (err) {
+      setCouponObj(null);
+      setDiscount(0);
+      setCouponError(err.response?.data?.message || 'Invalid coupon');
+      toast.error(err.response?.data?.message || 'Invalid coupon');
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (payment === 'stripe') {
@@ -140,6 +168,15 @@ export default function CheckoutPage() {
       if (payment !== 'razorpay') setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const promo = params.get('coupon');
+    if (promo) {
+      setCouponCode(promo.toUpperCase());
+      applyCouponCode(promo.toUpperCase());
+    }
+  }, [location.search]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -264,6 +301,29 @@ export default function CheckoutPage() {
                 </div>
               )}
             </section>
+
+            {/* Coupon Code */}
+            <section>
+              <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-sm flex items-center justify-center">4</span>
+                Coupon
+              </h2>
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-2">
+                  <input placeholder="Enter coupon code" value={couponCode} onChange={e => setCouponCode(e.target.value)} className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none" />
+                  <button type="button" onClick={() => {
+                    if (!couponCode) return toast.error('Enter coupon code');
+                    applyCouponCode(couponCode);
+                  }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">Apply</button>
+                  {couponObj && <button type="button" onClick={() => { setCouponCode(''); setCouponObj(null); setDiscount(0); setCouponError(null); }} className="border px-3 py-2 rounded-lg">Remove</button>}
+                </div>
+                {couponError && <p className="text-sm text-red-600">{couponError}</p>}
+                {couponObj && !couponError && (
+                  <p className="text-sm text-green-700">Coupon <span className="font-semibold">{couponObj.code}</span> applied successfully.</p>
+                )}
+              </div>
+            </section>
+
           </div>
 
           {/* Order Summary */}
@@ -287,6 +347,12 @@ export default function CheckoutPage() {
                   <span className="text-gray-500">Delivery ({deliveryOption.label})</span>
                   <span className={deliveryCost === 0 ? 'text-green-600' : ''}>{deliveryCost === 0 ? 'Free' : `$${deliveryCost.toFixed(2)}`}</span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Discount ({couponObj?.code})</span>
+                    <span className="text-green-600">-${discount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Payment</span>
                   <span>{PAYMENT_OPTIONS.find(p => p.id === payment)?.label}</span>

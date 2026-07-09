@@ -10,15 +10,18 @@ const statusColors = {
   shipped: 'bg-indigo-100 text-indigo-800',
   delivered: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
+  returned: 'bg-red-100 text-red-900',
 };
+const getDisplayStatus = (o) => o.return_status === 'refunded' ? 'returned' : o.status;
 
-const tabs = ['overview', 'products', 'orders', 'users', 'inventory', 'reviews'];
+const tabs = ['overview', 'banners', 'coupons', 'products', 'orders', 'returns', 'users', 'inventory', 'reviews'];
 
 export default function AdminPanelPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [returnRequests, setReturnRequests] = useState([]);
   const [users, setUsers] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,13 +32,15 @@ export default function AdminPanelPage() {
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [pRes, oRes, uRes] = await Promise.all([
+      const [pRes, oRes, rRes, uRes] = await Promise.all([
         api.get('/products?limit=100'),
         api.get('/orders/all'),
+        api.get('/orders/return-requests'),
         api.get('/users'),
       ]);
       setProducts(pRes.data.products);
       setOrders(oRes.data);
+      setReturnRequests(rRes.data || []);
       setUsers(uRes.data);
 
       // Collect all reviews from products
@@ -87,8 +92,67 @@ export default function AdminPanelPage() {
     } catch { toast.error('Failed to delete user'); }
   };
 
-  const totalRevenue = orders.filter(o => o.is_paid).reduce((s, o) => s + o.total_price, 0);
+  const refreshReturnRequests = async () => {
+    try {
+      console.debug('[Admin] Fetching return requests...');
+      const { data } = await api.get('/orders/return-requests');
+      console.debug('[Admin] Return requests fetched:', data?.length || 0, 'orders with requests');
+      setReturnRequests(data || []);
+    } catch (err) {
+      console.error('[Admin] Failed to fetch return requests:', err);
+      toast.error('Failed to refresh return requests');
+    }
+  };
+
+  const handleApproveReturn = async (orderId, itemIndex) => {
+    try {
+      await api.put(`/orders/${orderId}/return/${itemIndex}/approve`, { note: 'Approved by admin' });
+      toast.success('Return approved');
+      await refreshReturnRequests();
+    } catch (err) {
+      console.error('Approve error:', err);
+      toast.error(err?.response?.data?.message || 'Failed to approve return');
+    }
+  };
+
+  const handleRejectReturn = async (orderId, itemIndex) => {
+    try {
+      await api.put(`/orders/${orderId}/return/${itemIndex}/reject`, { note: 'Rejected by admin' });
+      toast.success('Return rejected');
+      await refreshReturnRequests();
+    } catch (err) {
+      console.error('Reject error:', err);
+      toast.error(err?.response?.data?.message || 'Failed to reject return');
+    }
+  };
+
+  const handleRefundReturn = async (orderId, itemIndex) => {
+    try {
+      // Find the order to calculate refund amount for the item
+      const order = returnRequests.find(o => o.id === orderId);
+      if (!order) {
+        toast.error('Order not found in state');
+        return;
+      }
+      const item = order.items?.[itemIndex];
+      if (!item) {
+        toast.error('Item not found in order');
+        return;
+      }
+      const refundAmount = Number(item.price || 0) * Number(item.quantity || 1);
+      
+      await api.put(`/orders/${orderId}/return/refund`, { itemIndexes: [itemIndex], refundAmount });
+      toast.success('Refund processed');
+      await refreshReturnRequests();
+    } catch (err) {
+      console.error('Refund error:', err);
+      toast.error(err?.response?.data?.message || 'Failed to process refund');
+    }
+  };
+
+  const totalRevenue = orders.filter(o => o.is_paid && o.return_status !== 'refunded').reduce((s, o) => s + o.total_price, 0);
   const pendingOrders = orders.filter(o => o.status === 'pending').length;
+  const pendingReturns = returnRequests.reduce((sum, o) => sum + (o.return_requests?.filter(i => i.return_status === 'requested' || (!i.return_status && i.return_requested)).length || 0), 0);
   const lowStockProducts = products.filter(p => p.stock <= 5).length;
 
   if (loading) return (
@@ -120,7 +184,7 @@ export default function AdminPanelPage() {
         {/* Tabs */}
         <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
           {tabs.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
+            <button key={tab} onClick={() => { setActiveTab(tab); setSearch(''); }}
               className={`px-5 py-3 font-medium capitalize text-sm border-b-2 transition whitespace-nowrap ${
                 activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-800'
               }`}>
@@ -132,7 +196,20 @@ export default function AdminPanelPage() {
         {/* ── OVERVIEW ── */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Stat Cards */}
+            <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 rounded-2xl p-6 text-white shadow">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.3em] text-indigo-200">Operations pulse</p>
+                  <h2 className="text-2xl font-bold mt-2">StyleHub is running smoothly — here is your daily control center.</h2>
+                  <p className="text-sm text-indigo-200 mt-2 max-w-2xl">Monitor fulfillment, inventory pressure, and account activity from one refined overview.</p>
+                </div>
+                <div className="rounded-xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
+                  <p className="font-semibold">Today’s focus</p>
+                  <p className="text-indigo-200 mt-1">{pendingOrders} orders need attention</p>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: 'Total Users', value: users.length, icon: '👥', color: 'from-blue-500 to-blue-600' },
@@ -148,8 +225,7 @@ export default function AdminPanelPage() {
               ))}
             </div>
 
-            {/* Alert Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 flex items-center gap-4">
                 <div className="text-4xl">⏳</div>
                 <div>
@@ -166,9 +242,16 @@ export default function AdminPanelPage() {
                   <button onClick={() => setActiveTab('inventory')} className="text-xs text-red-600 hover:underline mt-1">View all →</button>
                 </div>
               </div>
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 flex items-center gap-4">
+                <div className="text-4xl">↩</div>
+                <div>
+                  <p className="font-semibold text-indigo-800">Pending Returns</p>
+                  <p className="text-3xl font-bold text-indigo-700">{pendingReturns}</p>
+                  <button onClick={() => setActiveTab('returns')} className="text-xs text-indigo-600 hover:underline mt-1">Review →</button>
+                </div>
+              </div>
             </div>
 
-            {/* Recent Orders */}
             <div className="bg-white rounded-xl shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-800">Recent Orders</h2>
@@ -189,7 +272,7 @@ export default function AdminPanelPage() {
                         <td className="px-4 py-3 font-mono text-xs">{o.id.slice(0, 8)}...</td>
                         <td className="px-4 py-3">{o.users?.name || '—'}</td>
                         <td className="px-4 py-3 font-semibold">${o.total_price.toFixed(2)}</td>
-                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[o.status]}`}>{o.status}</span></td>
+      <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[getDisplayStatus(o)]}`}>{getDisplayStatus(o)}</span></td>
                         <td className="px-4 py-3 text-gray-500">{new Date(o.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}
@@ -198,7 +281,6 @@ export default function AdminPanelPage() {
               </div>
             </div>
 
-            {/* Recent Users */}
             <div className="bg-white rounded-xl shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-800">Recent Users</h2>
@@ -233,7 +315,108 @@ export default function AdminPanelPage() {
           </div>
         )}
 
+        {activeTab === 'returns' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Return Requests</h2>
+                <p className="text-sm text-gray-500">Review customer return requests and process refunds.</p>
+              </div>
+              <button onClick={refreshReturnRequests} className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Refresh requests</button>
+            </div>
+
+            {returnRequests.length === 0 ? (
+              <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500">No return requests at the moment.</div>
+            ) : (
+              <div className="space-y-4">
+                {returnRequests.map((order) => (
+                  <div key={order.id} className="bg-white rounded-2xl shadow p-6 border">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Order</p>
+                        <p className="font-semibold">#{order.id.slice(0, 8).toUpperCase()}</p>
+                        <p className="text-sm text-gray-500">Customer: {order.shipping_address?.fullName || order.users?.name || 'Unknown'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">Total</p>
+                        <p className="font-semibold">${Number(order.total_price).toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {order.return_requests.map((item) => {
+                        const refundAmt = (Number(item.price || 0) * Number(item.quantity || 1)).toFixed(2);
+                        const canRefund = item.return_status === 'approved';
+                        const canApprove = item.return_status === 'requested' || (!item.return_status && item.return_requested);
+                        const canReject = canApprove;
+                        return (
+                        <div key={item.itemIndex} className="rounded-xl border border-gray-200 p-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                          <div className="flex gap-3">
+                            {item.image && <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded-lg flex-shrink-0" />}
+                            <div>
+                              <p className="font-semibold">{item.name}</p>
+                              {item.size && <p className="text-xs text-gray-400">Size: {item.size}</p>}
+                              <p className="text-sm text-gray-500">Qty: {item.quantity} · Refund: <span className="font-medium text-gray-700">${refundAmt}</span></p>
+                              <p className="text-sm text-gray-500">Reason: {item.return_reason || 'Not specified'}</p>
+                              <p className="text-sm text-gray-500">Status: <span className={`font-semibold capitalize ${
+                                item.return_status === 'approved' ? 'text-green-600' :
+                                item.return_status === 'rejected' ? 'text-red-600' :
+                                item.return_status === 'refunded' ? 'text-indigo-600' :
+                                'text-yellow-600'}`}>{item.return_status || 'requested'}</span></p>
+                              {item.return_admin_note && <p className="text-sm text-gray-500">Note: {item.return_admin_note}</p>}
+                              {item.requested_at && <p className="text-xs text-gray-400">Requested: {new Date(item.requested_at).toLocaleDateString()}</p>}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 justify-end items-start">
+                            <button onClick={() => handleApproveReturn(order.id, item.itemIndex)} disabled={!canApprove} className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">Approve</button>
+                            <button onClick={() => handleRejectReturn(order.id, item.itemIndex)} disabled={!canReject} className="text-xs bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">Reject</button>
+                            <button
+                              onClick={() => handleRefundReturn(order.id, item.itemIndex)}
+                              disabled={!canRefund}
+                              title={!canRefund ? 'Approve the return first before processing refund' : ''}
+                              className="text-xs bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                              Process Refund ${refundAmt}
+                            </button>
+                          </div>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── PRODUCTS ── */}
+        {activeTab === 'banners' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow p-6 border border-indigo-100">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-800">Banner Offers</h2>
+                  <p className="text-sm text-gray-500 mt-1">Manage homepage promotions and banner redirects from a dedicated page.</p>
+                </div>
+                <Link to="/admin/banners" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">Open Banner Offers</Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'coupons' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow p-6 border border-indigo-100">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-800">Coupons</h2>
+                  <p className="text-sm text-gray-500 mt-1">Create and manage discount codes for customers.</p>
+                </div>
+                <Link to="/admin/coupons" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">Open Coupons</Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'products' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
@@ -280,15 +463,8 @@ export default function AdminPanelPage() {
                       <td className="px-4 py-3">{p.featured ? '⭐' : '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          {p.seller_id === user?.id && (
-                            <Link to={`/admin/products/${p.id}/edit`} className="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs hover:bg-blue-200">Edit</Link>
-                          )}
-                          {p.seller_id === user?.id && (
-                            <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs hover:bg-red-200">Delete</button>
-                          )}
-                          {p.seller_id !== user?.id && (
-                            <span className="text-xs text-gray-400 italic">Not your product</span>
-                          )}
+                          <Link to={`/admin/products/${p.id}/edit`} className="bg-blue-100 text-blue-700 px-3 py-1 rounded text-xs hover:bg-blue-200">Edit</Link>
+                          <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs hover:bg-red-200">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -344,11 +520,12 @@ export default function AdminPanelPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <select value={o.status} onChange={e => handleOrderStatus(o.id, e.target.value)}
-                          className={`px-2 py-1 rounded text-xs font-medium border-0 cursor-pointer ${statusColors[o.status]}`}>
+                        <select value={getDisplayStatus(o)} onChange={e => handleOrderStatus(o.id, e.target.value)}
+                          className={`px-2 py-1 rounded text-xs font-medium border-0 cursor-pointer ${statusColors[getDisplayStatus(o)]}`}>
                           {['pending','processing','shipped','delivered','cancelled'].map(s => (
                             <option key={s} value={s}>{s}</option>
                           ))}
+                          {getDisplayStatus(o) === 'returned' && <option value="returned">returned</option>}
                         </select>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>

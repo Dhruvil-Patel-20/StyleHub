@@ -121,7 +121,7 @@ router.put('/:id', protect, seller, upload.array('images', 5), async (req, res) 
   try {
     const { data: product } = await supabase.from('products').select('seller_id').eq('id', req.params.id).single();
     if (!product) return res.status(404).json({ message: 'Product not found' });
-    if (product.seller_id !== req.user.id)
+    if (product.seller_id !== req.user.id && req.user.role !== 'admin')
       return res.status(403).json({ message: 'Not authorized to update this product' });
 
     const { name, description, price, category, subCategory, stock, featured, original_price, is_returnable, return_window_days, return_policy_note } = req.body;
@@ -154,7 +154,7 @@ router.delete('/:id', protect, seller, async (req, res) => {
   try {
     const { data: product } = await supabase.from('products').select('seller_id').eq('id', req.params.id).single();
     if (!product) return res.status(404).json({ message: 'Product not found' });
-    if (product.seller_id !== req.user.id)
+    if (product.seller_id !== req.user.id && req.user.role !== 'admin')
       return res.status(403).json({ message: 'Not authorized to delete this product' });
 
     const { error } = await supabase.from('products').delete().eq('id', req.params.id);
