@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 
@@ -21,6 +21,9 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const closeTimer = useRef(null);
+
+  const location = useLocation();
+  const isHome = location.pathname === '/';
 
   const [search, setSearch] = useState('');
 
@@ -97,8 +100,8 @@ export default function Navbar() {
       </div>
 
 
-      {/* Row 2: Category dropdowns */}
-      <div className="hidden md:block border-t border-gray-100">
+      {/* Row 2: Category dropdowns — homepage only */}
+      {isHome && <div className="hidden md:block border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center">
           {NAV_CATEGORIES.map((cat, i) => (
             <div
@@ -147,7 +150,7 @@ export default function Navbar() {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Mobile menu */}
       {menuOpen === 'mobile' && (
@@ -157,8 +160,8 @@ export default function Navbar() {
             <button type="submit" className="text-gray-400">🔍</button>
           </form>
 
-          {/* Mobile category links */}
-          {NAV_CATEGORIES.map(cat => (
+          {/* Mobile category links — homepage only */}
+          {isHome && NAV_CATEGORIES.map(cat => (
             <div key={cat.slug}>
               <Link to={`/products?category=${cat.slug}`} onClick={() => setMenuOpen(false)}
                 className="block text-sm font-semibold text-gray-700 hover:text-indigo-600 py-1 capitalize">
