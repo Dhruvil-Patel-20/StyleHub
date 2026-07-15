@@ -12,6 +12,12 @@ export default function ProductCard({ product }) {
   const discountPct = hasDiscount ? Math.round((1 - Number(product.price) / Number(product.original_price)) * 100) : 0;
   const wishlisted = isWishlisted(pid);
   const stars = Math.min(5, Math.max(0, Math.round(Number(product.rating) || 0)));
+  const inventoryStatus = product.inventory_status || (product.stock > 0 ? (product.stock <= 2 ? { label: 'Only 2 left', tone: 'low', icon: '⚠️' } : { label: 'In Stock', tone: 'in', icon: '✅' }) : { label: 'Out of Stock', tone: 'out', icon: '❌' });
+  const stockToneClasses = {
+    in: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    low: 'bg-amber-50 text-amber-700 border border-amber-200',
+    out: 'bg-gray-100 text-gray-700 border border-gray-200',
+  };
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -36,9 +42,9 @@ export default function ProductCard({ product }) {
         />
         {/* Badges — stacked top-left */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {product.stock === 0 && (
-            <span className="bg-gray-800 text-white text-xs px-2 py-0.5 rounded-full font-medium">Out of Stock</span>
-          )}
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${stockToneClasses[inventoryStatus.tone]}`}>
+            {inventoryStatus.icon} {inventoryStatus.label}
+          </span>
           {hasDiscount && (
             <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">{discountPct}% OFF</span>
           )}
@@ -63,6 +69,9 @@ export default function ProductCard({ product }) {
           <span className="text-yellow-400 text-xs">{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
           <span className="text-xs text-gray-400">({product.num_reviews ?? product.numReviews ?? 0})</span>
         </div>
+        {product.seller_name && (
+          <p className="text-xs text-gray-500 mt-1">Sold by <span className="font-medium text-gray-700">{product.seller_name}</span></p>
+        )}
 
         <div className="mt-auto pt-3">
           <div className="flex items-baseline gap-2 mb-2">

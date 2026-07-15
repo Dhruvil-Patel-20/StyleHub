@@ -5,14 +5,14 @@ import BannerSlider from '../components/layout/BannerSlider';
 import ProductCard from '../components/product/ProductCard';
 
 const categories = [
-  { name: 'Men', slug: 'men', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1782990349/How-To-Dress-For-Your-Age-20s-30s-40s-50s-1_uwdzwn.jpg', color: 'bg-blue-100', subs: ['Shirts', 'Pants', 'Hoodies', 'Jackets', 'Suits'] },
+  { name: 'Men', slug: 'men', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1783600486/How-To-Dress-For-Your-Age-20s-30s-40s-50s-1_uwdzwn_zbumbd.jpg', color: 'bg-blue-100', subs: ['Shirts', 'Pants', 'Hoodies', 'Jackets', 'Suits'] },
   { name: 'Women', slug: 'women', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1782990258/photo-collage.png_13_1_w32jbf.png', color: 'bg-pink-100', subs: ['Dresses', 'Jeans', 'Jackets', 'Tops', 'Skirts'] },
   { name: 'Kids', slug: 'kids', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1782990064/couple-child-girl-boy-fashionable-clothes-cute-stylish-little-red-hearts-stick-sittting-together-studio-kids-169022263_av27fb.jpg', color: 'bg-yellow-100', subs: ['T-Shirts', 'Bottoms', 'Jackets', 'Dresses'] },
   { name: 'Footwear', slug: 'footwear', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1782988196/cld-sample-5.jpg', color: 'bg-green-100', subs: ['Sneakers', 'Boots', 'Running', 'Sandals'] },
   { name: 'Jewelry', slug: 'jewelry', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1782988720/partnerimages_2F9ec17df5_11017324_1_sdjabh.jpg', color: 'bg-purple-100', subs: ['Earrings', 'Necklaces', 'Bracelets', 'Rings', 'Luxury Watches'] },
   { name: 'Accessories', slug: 'accessories', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1782998159/new_header_spence_12_yhyuoi.jpg', color: 'bg-orange-100', subs: ['Wallets', 'Bags', 'Sunglasses', 'Belts', 'Smart Watches'] },
-  { name: 'Sportswear', slug: 'sportswear', image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=400&fit=crop', color: 'bg-red-100', subs: ['T-Shirts', 'Leggings', 'Jackets', 'Shorts'] },
-  { name: 'Beauty', slug: 'beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop', color: 'bg-rose-100', subs: ['Skincare', 'Makeup', 'Fragrance', 'Haircare'] },
+  { name: 'Sportswear', slug: 'sportswear', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1783600567/photo-1571019613454-1cb2f99b2d8b_yc1dd0.jpg', color: 'bg-red-100', subs: ['T-Shirts', 'Leggings', 'Jackets', 'Shorts'] },
+  { name: 'Beauty', slug: 'beauty', image: 'https://res.cloudinary.com/u1malbew/image/upload/v1783600693/photo-1596462502278-27bfdc403348_uaw87w.jpg', color: 'bg-rose-100', subs: ['Skincare', 'Makeup', 'Fragrance', 'Haircare'] },
 ];
 
 const countries = [

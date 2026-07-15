@@ -44,7 +44,7 @@ function Section({ title, children, defaultOpen = true }) {
   );
 }
 
-function Sidebar({ searchParams, setSearchParams, priceMin, setPriceMin, priceMax, setPriceMax, activeFiltersCount, clearAll }) {
+function Sidebar({ searchParams, setSearchParams, priceMin, setPriceMin, priceMax, setPriceMax, activeFiltersCount, clearAll, sellers = [] }) {
   const category    = searchParams.get('category') || '';
   const subCategory = searchParams.get('subCategory') || '';
   const minPrice    = searchParams.get('minPrice') || '';
@@ -54,6 +54,7 @@ function Sidebar({ searchParams, setSearchParams, priceMin, setPriceMin, priceMa
   const color       = searchParams.get('color') || '';
   const inStock     = searchParams.get('inStock') || '';
   const onSale      = searchParams.get('onSale') || '';
+  const sellerId    = searchParams.get('sellerId') || '';
 
   const setParam = (key, value) => {
     const p = new URLSearchParams(searchParams);
@@ -93,6 +94,19 @@ function Sidebar({ searchParams, setSearchParams, priceMin, setPriceMin, priceMa
             {c}
           </button>
         ))}
+      </Section>
+
+      <Section title="Seller">
+        <select
+          value={sellerId}
+          onChange={e => setParam('sellerId', e.target.value)}
+          className="w-full border rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-indigo-400"
+        >
+          <option value="">All Sellers</option>
+          {sellers.map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
       </Section>
 
       {category && subCategories[category] && (
@@ -189,6 +203,7 @@ export default function ProductsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [priceMin, setPriceMin] = useState(searchParams.get('minPrice') || '');
   const [priceMax, setPriceMax] = useState(searchParams.get('maxPrice') || '');
+  const [sellers, setSellers] = useState([]);
 
   const category    = searchParams.get('category') || '';
   const subCategory = searchParams.get('subCategory') || '';
@@ -202,6 +217,13 @@ export default function ProductsPage() {
   const color       = searchParams.get('color') || '';
   const inStock     = searchParams.get('inStock') || '';
   const onSale      = searchParams.get('onSale') || '';
+  const sellerId    = searchParams.get('sellerId') || '';
+
+  useEffect(() => {
+    api.get('/products/sellers')
+      .then(res => setSellers(res.data || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -216,12 +238,13 @@ export default function ProductsPage() {
     if (size)        params.set('size', size);
     if (color)       params.set('color', color);
     if (inStock)     params.set('inStock', inStock);
+    if (sellerId)    params.set('sellerId', sellerId);
     params.set('page', page);
     api.get(`/products?${params}`)
       .then(res => { setAllProducts(res.data.products); setTotal(res.data.total); setPages(res.data.pages); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [category, subCategory, search, sort, minPrice, maxPrice, minRating, size, color, inStock, page]);
+  }, [category, subCategory, search, sort, minPrice, maxPrice, minRating, size, color, inStock, sellerId, page]);
 
   // onSale is client-side only (products with original_price > price)
   const products = onSale
@@ -235,7 +258,7 @@ export default function ProductsPage() {
     setSearchParams(p);
   }, [searchParams, setSearchParams]);
 
-  const activeFiltersCount = [minPrice, maxPrice, minRating, size, color, inStock, onSale, subCategory].filter(Boolean).length;
+  const activeFiltersCount = [minPrice, maxPrice, minRating, size, color, inStock, onSale, subCategory, sellerId].filter(Boolean).length;
 
   const clearAll = useCallback(() => {
     const p = new URLSearchParams();
@@ -245,7 +268,7 @@ export default function ProductsPage() {
     setSearchParams(p);
   }, [category, search, setSearchParams]);
 
-  const sidebarProps = { searchParams, setSearchParams, priceMin, setPriceMin, priceMax, setPriceMax, activeFiltersCount, clearAll };
+  const sidebarProps = { searchParams, setSearchParams, priceMin, setPriceMin, priceMax, setPriceMax, activeFiltersCount, clearAll, sellers };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -291,14 +314,26 @@ export default function ProductsPage() {
               {inStock && <span className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full flex items-center gap-1">In Stock <button onClick={() => setParam('inStock', '')} className="hover:text-red-500">✕</button></span>}
               {onSale && <span className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full flex items-center gap-1">On Sale <button onClick={() => setParam('onSale', '')} className="hover:text-red-500">✕</button></span>}
               {subCategory && <span className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full flex items-center gap-1">{subCategory} <button onClick={() => setParam('subCategory', '')} className="hover:text-red-500">✕</button></span>}
+              {sellerId && sellers.find(s => s.id === sellerId) && <span className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full flex items-center gap-1">Seller: {sellers.find(s => s.id === sellerId)?.name} <button onClick={() => setParam('sellerId', '')} className="hover:text-red-500">✕</button></span>}
             </div>
           )}
 
-          <div className="flex items-center justify-between mb-4">
-            <p className="hidden md:block text-sm text-gray-500">{onSale ? products.length : total} products found</p>
-            <select value={sort} onChange={e => setParam('sort', e.target.value)} className="border rounded px-3 py-1.5 text-sm ml-auto">
-              {sortOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setParam('search', e.target.value)}
+                placeholder="Search products or sellers"
+                className="w-full md:max-w-md border border-gray-200 rounded-full px-4 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="hidden md:block text-sm text-gray-500">{onSale ? products.length : total} products found</p>
+              <select value={sort} onChange={e => setParam('sort', e.target.value)} className="border rounded px-3 py-1.5 text-sm ml-auto">
+                {sortOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
           </div>
 
           {loading ? (

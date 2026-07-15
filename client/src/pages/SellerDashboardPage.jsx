@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend, BarChart, Bar
+} from 'recharts';
+
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -68,10 +73,54 @@ export default function SellerDashboardPage() {
     status,
     count: orders.filter(o => getDisplayStatus(o) === status).length,
   }));
-  const deliveryMethods = ['standard', 'express', 'nextday'].map(method => ({
-    method,
-    count: orders.filter(o => o.delivery_method === method).length,
-  }));
+  const getRevenueData = () => {
+    const dateMap = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      dateMap[label] = 0;
+    }
+    orders
+      .filter(o => o.is_paid && o.return_status !== 'refunded')
+      .forEach(o => {
+        const label = new Date(o.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        if (dateMap[label] !== undefined) {
+          dateMap[label] += Number(o.total_price || 0);
+        }
+      });
+    return Object.keys(dateMap).map(date => ({
+      date,
+      Revenue: parseFloat(dateMap[date].toFixed(2))
+    }));
+  };
+
+  const getStatusData = () => {
+    return statusBreakdown.map(item => ({
+      name: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+      value: item.count
+    })).filter(item => item.value > 0);
+  };
+
+  const getDeliveryData = () => {
+    const methods = ['standard', 'express', 'nextday'].map(method => ({
+      method,
+      count: orders.filter(o => o.delivery_method === method).length,
+    }));
+    return methods.map(item => ({
+      name: item.method === 'nextday' ? 'Next Day' : item.method.charAt(0).toUpperCase() + item.method.slice(1),
+      Orders: item.count
+    }));
+  };
+
+  const STATUS_COLORS = {
+    Pending: '#FBBF24',
+    Processing: '#3B82F6',
+    Shipped: '#6366F1',
+    Delivered: '#10B981',
+    Cancelled: '#EF4444',
+    Returned: '#7F1D1D',
+  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -111,22 +160,23 @@ export default function SellerDashboardPage() {
           ))}
         </div>
 
+        <div className="mb-6 rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-600 to-indigo-700 to-indigo-600 p-6 text-white shadow">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-purple-100">Seller momentum</p>
+              <h2 className="text-2xl font-bold mt-2">Your storefront is trending — keep the offers rolling.</h2>
+              <p className="text-sm text-purple-100 mt-2 max-w-2xl">Bundle top sellers, keep inventory healthy, and protect your delivery promises to strengthen repeat purchases.</p>
+            </div>
+            <div className="rounded-xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
+              <p className="font-semibold">Live offer</p>
+              <p className="text-purple-100 mt-1">Free shipping for bundles this week</p>
+            </div>
+          </div>
+        </div>
+
         {/* ── OVERVIEW ── */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow">
-              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.3em] text-purple-100">Seller momentum</p>
-                  <h2 className="text-2xl font-bold mt-2">Your storefront is trending — keep the offers rolling.</h2>
-                  <p className="text-sm text-purple-100 mt-2 max-w-2xl">Bundle top sellers, keep inventory healthy, and protect your delivery promises to strengthen repeat purchases.</p>
-                </div>
-                <div className="rounded-xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
-                  <p className="font-semibold">Live offer</p>
-                  <p className="text-purple-100 mt-1">Free shipping for bundles this week</p>
-                </div>
-              </div>
-            </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
@@ -162,44 +212,80 @@ export default function SellerDashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Revenue Trend Chart */}
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Revenue Trend (Last 7 Days)</h2>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={getRevenueData()} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                    <Tooltip formatter={(val) => [`$${Number(val).toFixed(2)}`, 'Revenue']} contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Area type="monotone" dataKey="Revenue" stroke="#8B5CF6" fillOpacity={1} fill="url(#colorRevenue)" strokeWidth={2.5} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Delivery Methods Bar Chart */}
               <div className="bg-white rounded-xl shadow p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-gray-800">Delivery Analysis</h2>
-                  <span className="text-sm text-gray-500">{deliveryRate}% delivered</span>
+                  <span className="text-sm text-gray-500 font-medium">{deliveryRate}% Delivered Rate</span>
                 </div>
-                <div className="space-y-3">
-                  {deliveryMethods.map(item => (
-                    <div key={item.method}>
-                      <div className="flex justify-between text-sm text-gray-600 mb-1">
-                        <span className="capitalize">{item.method}</span>
-                        <span>{item.count}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-indigo-500 h-2 rounded-full" style={{ width: `${orders.length ? (item.count / orders.length) * 100 : 0}%` }}></div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getDeliveryData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip cursor={{ fill: '#F3F4F6' }} contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }} />
+                      <Bar dataKey="Orders" fill="#6366F1" radius={[4, 4, 0, 0]} maxBarSize={45} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
+
+              {/* Order Status Pie Chart */}
               <div className="bg-white rounded-xl shadow p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-800">Purchase Tracking</h2>
-                  <span className="text-sm text-gray-500">{totalRevenue.toFixed(2)} revenue</span>
+                  <h2 className="text-lg font-bold text-gray-800">Order Status Breakdown</h2>
+                  <span className="text-sm text-gray-500 font-medium">${totalRevenue.toFixed(2)} Total Revenue</span>
                 </div>
-                <div className="space-y-3">
-                  {statusBreakdown.map(item => (
-                    <div key={item.status}>
-                      <div className="flex justify-between text-sm text-gray-600 mb-1">
-                        <span className="capitalize">{item.status}</span>
-                        <span>{item.count}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className={`h-2 rounded-full ${item.status === 'delivered' ? 'bg-green-500' : item.status === 'processing' || item.status === 'shipped' ? 'bg-blue-500' : item.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${orders.length ? (item.count / orders.length) * 100 : 0}%`, opacity: item.status === 'returned' ? 0.6 : 1 }}></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {getStatusData().length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No orders to display</div>
+                ) : (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={getStatusData()}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="48%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={3}
+                        >
+                          {getStatusData().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.name] || '#9CA3AF'} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(val) => [`${val} Orders`, 'Count']} contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             </div>
 

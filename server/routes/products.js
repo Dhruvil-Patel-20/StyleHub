@@ -3,6 +3,14 @@ const supabase = require('../supabase');
 const { protect, admin, seller } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
+const { getInventoryStatus, enrichProductsWithSellerNames } = require('../utils/productDisplay');
+
+const getSellerIdsByName = async (search, client) => {
+  if (!search) return [];
+  const { data, error } = await client.from('users').select('id').ilike('name', `%${search}%`);
+  if (error) throw error;
+  return (data || []).map((seller) => seller.id);
+};
 
 const storage = multer.diskStorage({
   destination: 'uploads/',
@@ -13,7 +21,7 @@ const upload = multer({ storage });
 // Get all products with filters
 router.get('/', async (req, res) => {
   try {
-    const { category, minPrice, maxPrice, size, color, search, sort, page = 1, limit = 12, subCategory, minRating, inStock } = req.query;
+    const { category, minPrice, maxPrice, size, color, search, sort, page = 1, limit = 12, subCategory, minRating, inStock, sellerId } = req.query;
 
     let query = supabase.from('products').select('*', { count: 'exact' });
 
@@ -23,7 +31,15 @@ router.get('/', async (req, res) => {
     if (maxPrice) query = query.lte('price', Number(maxPrice));
     if (size) query = query.contains('sizes', [size]);
     if (color) query = query.contains('colors', [color]);
-    if (search) query = query.ilike('name', `%${search}%`);
+    if (sellerId) query = query.eq('seller_id', sellerId);
+    if (search) {
+      const sellerIds = await getSellerIdsByName(search, supabase);
+      if (sellerIds.length) {
+        query = query.or(`name.ilike.%${search}%,seller_id.in.(${sellerIds.join(',')})`);
+      } else {
+        query = query.ilike('name', `%${search}%`);
+      }
+    }
     if (minRating) query = query.gte('rating', Number(minRating));
     if (inStock === 'true') query = query.gt('stock', 0);
 
@@ -38,7 +54,13 @@ router.get('/', async (req, res) => {
     const { data: products, count, error } = await query;
     if (error) throw error;
 
-    res.json({ products, total: count, pages: Math.ceil(count / limit) });
+    const enrichedProducts = await enrichProductsWithSellerNames(products || [], supabase);
+    const productsWithInventory = (enrichedProducts || []).map((product) => ({
+      ...product,
+      inventory_status: getInventoryStatus(product.stock),
+    }));
+
+    res.json({ products: productsWithInventory, total: count, pages: Math.ceil(count / limit) });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -48,7 +70,29 @@ router.get('/featured', async (req, res) => {
   try {
     const { data, error } = await supabase.from('products').select('*').eq('featured', true).limit(8);
     if (error) throw error;
-    res.json(data);
+    const enrichedProducts = await enrichProductsWithSellerNames(data || [], supabase);
+    res.json((enrichedProducts || []).map((product) => ({
+      ...product,
+      inventory_status: getInventoryStatus(product.stock),
+    })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get unique sellers with active products
+router.get('/sellers', async (req, res) => {
+  try {
+    const { data: productsData, error: pErr } = await supabase.from('products').select('seller_id');
+    if (pErr) throw pErr;
+
+    const sellerIds = [...new Set(productsData.map(p => p.seller_id).filter(Boolean))];
+    if (!sellerIds.length) return res.json([]);
+
+    const { data: sellers, error: sErr } = await supabase.from('users').select('id, name').in('id', sellerIds);
+    if (sErr) throw sErr;
+
+    res.json(sellers || []);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -77,7 +121,11 @@ router.get('/:id', async (req, res) => {
       .eq('id', req.params.id)
       .single();
     if (error || !product) return res.status(404).json({ message: 'Product not found' });
-    res.json(product);
+    const [enrichedProduct] = await enrichProductsWithSellerNames([product], supabase);
+    res.json({
+      ...enrichedProduct,
+      inventory_status: getInventoryStatus(enrichedProduct.stock),
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

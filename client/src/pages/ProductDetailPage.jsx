@@ -19,6 +19,12 @@ export default function ProductDetailPage() {
   const [review, setReview] = useState({ rating: 5, comment: '' });
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState([]);
+  const inventoryStatus = product?.inventory_status || (product?.stock > 0 ? (product?.stock <= 2 ? { label: 'Only 2 left', tone: 'low', icon: '⚠️' } : { label: 'In Stock', tone: 'in', icon: '✅' }) : { label: 'Out of Stock', tone: 'out', icon: '❌' });
+  const stockToneClasses = {
+    in: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    low: 'bg-amber-50 text-amber-700 border border-amber-200',
+    out: 'bg-gray-100 text-gray-700 border border-gray-200',
+  };
 
   useEffect(() => {
     api.get(`/products/${id}`)
@@ -76,6 +82,9 @@ export default function ProductDetailPage() {
             <span className="text-yellow-400">{'★'.repeat(Math.round(product.rating))}{'☆'.repeat(5 - Math.round(product.rating))}</span>
             <span className="text-sm text-gray-400">({product.num_reviews ?? product.numReviews} reviews)</span>
           </div>
+          {product.seller_name && (
+            <p className="text-sm text-gray-600 mt-2">Sold by <span className="font-semibold text-gray-800">{product.seller_name}</span></p>
+          )}
 
           {/* Price block */}
           <div className="mt-4 flex items-center gap-3 flex-wrap">
@@ -147,7 +156,10 @@ export default function ProductDetailPage() {
             </button>
           </div>
 
-          <p className="text-sm text-gray-500 mt-3">{product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</p>
+          <div className={`inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full text-sm font-medium ${stockToneClasses[inventoryStatus.tone]}`}>
+            <span>{inventoryStatus.icon}</span>
+            <span>{inventoryStatus.label}</span>
+          </div>
 
           {/* Return Policy */}
           <div className={`mt-5 rounded-xl px-4 py-3 flex items-start gap-3 ${

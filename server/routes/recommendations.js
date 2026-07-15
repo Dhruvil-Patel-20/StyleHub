@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
+const { getInventoryStatus, enrichProductsWithSellerNames } = require('../utils/productDisplay');
 
 let supabase;
 
@@ -66,8 +67,10 @@ router.get('/', async (req, res) => {
 
     if (error) throw error;
 
-    const orderedProducts = sortProductsByRecommendationOrder(recommendedProducts || [], recommendationIds)
-      .filter((product) => String(product.id || product._id) !== String(currentProductId));
+    const enrichedRecommendedProducts = await enrichProductsWithSellerNames(recommendedProducts || [], getSupabase());
+    const orderedProducts = sortProductsByRecommendationOrder(enrichedRecommendedProducts || [], recommendationIds)
+      .filter((product) => String(product.id || product._id) !== String(currentProductId))
+      .map((product) => ({ ...product, inventory_status: getInventoryStatus(product.stock) }));
 
     if (orderedProducts.length >= topK) {
       return res.json(orderedProducts.slice(0, topK));
@@ -81,11 +84,13 @@ router.get('/', async (req, res) => {
 
     if (fallbackError) throw fallbackError;
 
+    const enrichedFallbackProducts = await enrichProductsWithSellerNames(fallbackProducts || [], getSupabase());
     const seenIds = new Set(orderedProducts.map((product) => String(product.id || product._id)));
-    const extras = (fallbackProducts || [])
+    const extras = (enrichedFallbackProducts || [])
       .filter((product) => !seenIds.has(String(product.id || product._id)))
       .filter((product) => String(product.id || product._id) !== String(currentProductId))
-      .slice(0, topK - orderedProducts.length);
+      .slice(0, topK - orderedProducts.length)
+      .map((product) => ({ ...product, inventory_status: getInventoryStatus(product.stock) }));
 
     res.json([...orderedProducts, ...extras]);
   } catch (err) {

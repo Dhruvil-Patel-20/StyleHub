@@ -1,72 +1,72 @@
 # StyleHub
 
-StyleHub is a full-stack e-commerce fashion platform built with React, Node.js/Express, Supabase, and a Python-based recommendation service.
-
-## Project Structure
-
-```
-StyleHub/
-├── client/                  # React frontend (Vite)
-│   └── src/
-│       ├── components/
-│       │   ├── cart/
-│       │   ├── layout/      # Navbar, Footer, BannerSlider, ProtectedRoute
-│       │   └── product/     # ProductCard
-│       ├── context/         # AuthContext, CartContext
-│       ├── pages/
-│       │   ├── admin/       # Dashboard, Products, Orders, Banners, Coupons
-│       │   └── ...          # Cart, Checkout, Home, Orders, Profile, Wishlist, etc.
-│       └── utils/api.js     # Axios client
-├── server/                  # Node.js/Express backend
-│   ├── config/              # Email config
-│   ├── controllers/         # Email controller
-│   ├── middleware/          # JWT auth middleware
-│   ├── routes/              # auth, products, orders, cart, payment, recommendations, banners, coupons, users, email
-│   ├── services/            # Email service (Brevo), payment reminder
-│   ├── templates/emails/    # Transactional email templates
-│   ├── utils/               # Invoice generator, email utils, return utils
-│   ├── uploads/invoices/    # Generated PDF invoices
-│   ├── supabase.js          # Supabase client
-│   └── index.js             # Entry point
-└── recommandation/          # Python recommendation service
-    ├── data/                # interactions.csv
-    ├── features/            # Preprocessing, TF dataset
-    ├── generators/          # Synthetic data generators
-    ├── models/              # TensorFlow Recommenders models
-    ├── training/            # Training pipeline
-    ├── saved_models/        # recommendation_model.pkl
-    ├── app.py               # FastAPI app
-    └── train.py             # Training entry point
-```
+A full-stack premium e-commerce fashion platform with multi-role support (client, seller, admin), personalized recommendations, visual analytics dashboards, and automated transactional emails.
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, React Router v6, Vite, Axios, Stripe.js, React Toastify |
-| Backend | Node.js, Express, Supabase JS client, JWT, bcryptjs, Multer, PDFKit |
-| Payments | Stripe, Razorpay |
-| Email | Brevo (@getbrevo/brevo) |
+| Frontend | React 18, React Router v6, Vite, Axios, Recharts, Stripe.js, React Toastify |
+| Backend | Node.js, Express, Supabase JS, JWT, bcryptjs, Multer, PDFKit |
+| Payments | Stripe (USD), Razorpay (INR), Cash on Delivery |
+| Email | Brevo (`@getbrevo/brevo`) |
 | Recommendation | Python, FastAPI, TensorFlow, TensorFlow Recommenders, scikit-learn |
 | Database | Supabase (PostgreSQL) |
+
+## Project Structure
+
+```
+StyleHub/
+├── client/                        # React frontend (Vite, port 3000)
+│   └── src/
+│       ├── components/
+│       │   ├── cart/
+│       │   ├── layout/            # Navbar, Footer, BannerSlider, ProtectedRoute
+│       │   └── product/           # ProductCard with "Sold by" badges
+│       ├── context/               # AuthContext, CartContext
+│       ├── pages/
+│       │   ├── admin/             # AdminPanelPage, Products, Orders, Banners, Coupons
+│       │   ├── SellerDashboardPage.jsx
+│       │   └── ...                # Cart, Checkout, Home, Orders, Profile, Wishlist, etc.
+│       └── utils/api.js           # Axios client (proxied to :5000)
+├── server/                        # Node.js/Express backend (port 5000)
+│   ├── config/email.config.js
+│   ├── controllers/email.controller.js
+│   ├── middleware/auth.js          # JWT protect, admin, seller guards
+│   ├── routes/                    # auth, products, orders, cart, payment, recommendations, banners, coupons, users, email
+│   ├── services/
+│   │   ├── email/                 # Brevo email service
+│   │   └── paymentReminder.js
+│   ├── templates/emails/          # order-confirmation, shipped, delivered, cancelled, payment-receipt, refund, reset-password, welcome, verify-email, payment-pending
+│   ├── utils/                     # invoice.js (PDFKit), email.utils.js, productDisplay.js, returnUtils.js
+│   ├── uploads/invoices/          # Generated PDF invoices
+│   ├── supabase.js
+│   └── index.js → server.js
+└── recommandation/                # Python recommendation microservice (port 8000)
+    ├── data/interactions.csv
+    ├── features/                  # preprocess.py, tf_dataset.py
+    ├── generators/                # Synthetic data generators
+    ├── models/                    # Two-tower TF model (user + product encoders)
+    ├── training/                  # Training pipeline + exporter
+    ├── saved_models/recommendation_model.pkl
+    ├── app.py                     # FastAPI app
+    └── train.py
+```
 
 ## Setup
 
 ### 1. Install dependencies
 
 ```bash
-# From project root
-npm install
-
 cd client && npm install
 cd ../server && npm install
 ```
 
-### 2. Configure environment variables
+### 2. Environment variables
 
-Create `server/.env`:
+`server/.env`:
 ```env
-PORT=4000
+PORT=5000
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 JWT_SECRET=your_jwt_secret
@@ -74,97 +74,163 @@ STRIPE_SECRET_KEY=sk_test_your_stripe_key
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 BREVO_API_KEY=your_brevo_api_key
+FRONTEND_URL=http://localhost:3000
 RECOMMENDATION_API_URL=http://127.0.0.1:8000
 ```
 
-Create `recommandation/.env`:
+`recommandation/.env`:
 ```env
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-### 3. Run backend + frontend
+### 3. Run backend & frontend
 
 ```bash
-npm run dev
+# Terminal 1 — Server
+cd server && npm run dev
+
+# Terminal 2 — Client
+cd client && npm start
 ```
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:4000`
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:5000`
 
 ### 4. Run the recommendation service
 
 ```bash
 cd recommandation
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # macOS/Linux
+
 pip install -r requirements.txt
-
-# Train the model (first time)
-python train.py
-
-# Start the API
+python train.py              # First-time model training
 uvicorn app:app --reload
 ```
 
-- Health check: `http://127.0.0.1:8000/health`
-- Recommendations: `http://127.0.0.1:8000/recommend/<user_id>`
+- Health: `http://127.0.0.1:8000/health`
+- Recommend: `http://127.0.0.1:8000/recommend/{user_id}`
+- Retrain: `POST http://127.0.0.1:8000/train`
 
-## Backend API Routes
+## API Routes
 
+### Auth — `/api/auth`
 | Method | Route | Description |
 |---|---|---|
-| POST | `/api/auth/register` | Register |
-| POST | `/api/auth/login` | Login |
-| GET | `/api/products` | List products |
-| GET | `/api/products/:id` | Product detail |
-| GET | `/api/recommendations` | Personalized recommendations |
-| GET | `/api/orders` | User orders |
-| POST | `/api/payment` | Process payment |
-| GET/PUT | `/api/users` | User profile |
-| GET/POST | `/api/cart` | Cart operations |
-| GET/POST | `/api/banners` | Banner management |
-| GET/POST | `/api/coupons` | Coupon management |
-| POST | `/api/email` | Send transactional emails |
+| POST | `/register` | Register (client / seller / admin) |
+| POST | `/login` | Login, returns JWT |
+| POST | `/forgot-password` | Send password reset email |
+| POST | `/reset-password` | Reset password with new value |
+| GET | `/profile` | Get own profile (protected) |
+| PUT | `/profile` | Update name, email, or password |
+| PUT | `/wishlist/:productId` | Toggle product in wishlist |
+
+### Products — `/api/products`
+| Method | Route | Description |
+|---|---|---|
+| GET | `/` | List products (filters: category, subCategory, price, size, color, search, sellerId, inStock, minRating, sort, page, limit) |
+| GET | `/featured` | Get featured products |
+| GET | `/sellers` | List unique sellers with active products |
+| GET | `/myproducts` | Seller: own products with reviews |
+| GET | `/:id` | Product detail with seller name & reviews |
+| POST | `/` | Seller: create product (multipart, up to 5 images) |
+| PUT | `/:id` | Seller/Admin: update product |
+| DELETE | `/:id` | Seller/Admin: delete product |
+| POST | `/:id/review` | Authenticated: submit review (once per user) |
+
+### Orders — `/api/orders`
+| Method | Route | Description |
+|---|---|---|
+| POST | `/` | Create order (validates coupon, sends confirmation email + invoice) |
+| GET | `/myorders` | Client: own orders |
+| GET | `/sellerorders` | Seller: orders containing their products |
+| GET | `/all` | Admin: all orders |
+| GET | `/return-requests` | Admin: pending return requests |
+| GET | `/:id` | Order detail |
+| POST | `/:id/invoice` | Generate/email PDF invoice |
+| PUT | `/:id/pay` | Mark order paid (sends payment receipt + invoice) |
+| PUT | `/:id/status` | Admin: update status (triggers shipped/delivered/cancelled emails; auto-marks COD paid on delivery) |
+| PUT | `/:id/cancel` | Client: cancel order (if not shipped/delivered) |
+| POST | `/:id/return` | Client: request return on delivered order |
+| PUT | `/:id/return/:itemIndex/approve` | Admin: approve single item return |
+| PUT | `/:id/return/:itemIndex/reject` | Admin: reject single item return |
+| PUT | `/:id/return/approve-all` | Admin: approve all return items |
+| PUT | `/:id/return/reject-all` | Admin: reject all return items |
+| PUT | `/:id/return/refund` | Admin: process refund (restores stock) |
+| POST | `/:id/send-email` | Admin: manually trigger order email |
+| POST | `/fix-cod-paid` | Admin: backfill unpaid delivered COD orders |
+
+### Payment — `/api/payment`
+| Method | Route | Description |
+|---|---|---|
+| POST | `/create-payment-intent` | Stripe: create PaymentIntent (USD) |
+| POST | `/razorpay/create-order` | Razorpay: create order (INR) |
+
+### Coupons — `/api/coupons`
+| Method | Route | Description |
+|---|---|---|
+| GET | `/validate?code=&amount=&deliveryCost=` | Validate coupon & compute discount |
+| GET | `/all` | Admin: list all coupons |
+| POST | `/` | Admin: create coupon (percent / fixed / free_shipping) |
+| PUT | `/:id` | Admin: update coupon |
+| PATCH | `/:id/toggle` | Admin: toggle active status |
+| DELETE | `/:id` | Admin: delete coupon |
+
+### Users — `/api/users`
+| Method | Route | Description |
+|---|---|---|
+| GET | `/` | Admin: list all users |
+| PUT | `/:id/role` | Admin: change user role |
+| DELETE | `/:id` | Admin: delete user |
+| DELETE | `/me` | Self: delete own account |
+
+### Other
+| Method | Route | Description |
+|---|---|---|
+| GET/POST | `/api/banners` | Manage homepage banners |
+| GET/POST | `/api/cart` | Shopping cart |
+| GET | `/api/recommendations` | Personalized recommendations (proxies to Python service) |
 
 ## Frontend Pages
 
 **Public**
-- `/` — Home with banner slider and recommendations
-- `/products` — Product catalog
-- `/product/:id` — Product detail with recommendations
-- `/cart` — Shopping cart
-- `/login`, `/register` — Auth pages
-- `/shipping`, `/returns`, `/how-to-care`, `/terms`, `/privacy`, `/contact` — Static pages
+- `/` — Home: banner slider, featured & recommended products
+- `/products` — Catalog with filters (category, subcategory, size, color, seller, price, rating, stock)
+- `/product/:id` — Detail: images, sizes, reviews, related recommendations
+- `/cart` — Cart view
+- `/login`, `/register` — Auth
+- `/shipping`, `/returns`, `/how-to-care`, `/terms`, `/privacy`, `/contact` — Static info pages
 
-**Protected**
-- `/checkout` — Checkout with Stripe/Razorpay
-- `/profile` — User profile
-- `/orders`, `/orders/:id` — Order history and detail
-- `/wishlist` — Wishlist
+**Client (protected)**
+- `/checkout` — Stripe / Razorpay / COD checkout with coupon support
+- `/orders`, `/orders/:id` — Order history, tracking, invoice download
+- `/profile` — Update profile, password, wishlist
+- `/wishlist` — Saved products
 
-**Admin**
-- `/admin` — Admin panel
-- `/admin/dashboard` — Dashboard
-- `/admin/products` — Product management (with form)
-- `/admin/orders` — Order management
-- `/admin/banners` — Banner management
-- `/admin/coupons` — Coupon management
+**Seller (protected)**
+- `/seller` — Dashboard: product CRUD, inventory, sales analytics (AreaChart revenue, BarChart delivery, PieChart order status), customer reviews, order tracking
 
-**Seller**
-- `/seller` — Seller dashboard
+**Admin (protected)**
+- `/admin` — Control panel: banners, coupons, full product library, order management, return approvals, refunds, user role management, analytics (ComposedChart sales + orders, PieChart categories, BarChart user roles)
 
-## Email Notifications
+## Key Features
 
-Transactional emails are sent via Brevo for:
-- Welcome, email verification, password reset
-- Order confirmation, shipped, delivered, cancelled
-- Payment receipt, payment pending reminder
-- Refund processed
+### Coupon Engine
+Supports `percent`, `fixed`, and `free_shipping` types with constraints: min order value, date range, max total uses, max per user, one-per-user, first-order-only, and optional free shipping add-on.
 
-## Recommendation System
+### Returns & Refunds
+Customers can request returns on delivered orders per item. Admins approve/reject individually or in bulk. Refunds restore product stock automatically.
 
-- Trained on user interaction data (`data/interactions.csv`)
-- Uses TensorFlow Recommenders (two-tower retrieval model)
-- Served via FastAPI, integrated into `/api/recommendations`
-- Falls back to popular products when personalized data is unavailable
+### PDF Invoices
+Generated with PDFKit on order creation and payment. Stored in `server/uploads/invoices/` and emailed to the customer.
+
+### Transactional Emails (Brevo)
+Triggered automatically for: welcome, email verification, password reset, order confirmation, shipped, delivered, cancelled, payment receipt, refund processed, payment pending reminder.
+
+### Recommendation Service
+TensorFlow two-tower model (user encoder + product encoder) trained on `interactions.csv`. Served via FastAPI. Auto-trains on startup if no saved model exists. Falls back to trending products for guests.
+
+### COD Auto-Pay
+When an admin marks a Cash on Delivery order as `delivered`, the order is automatically marked as paid and a payment receipt email is sent.

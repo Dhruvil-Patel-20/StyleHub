@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen overflow-hidden relative flex flex-col" style={{
-      backgroundImage: `url('https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1920&q=90&fit=crop')`,
+      backgroundImage: `url('https://res.cloudinary.com/u1malbew/image/upload/v1783600382/photo-1483985988355-763728e1935b_yi5nw2.jpg')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }}>

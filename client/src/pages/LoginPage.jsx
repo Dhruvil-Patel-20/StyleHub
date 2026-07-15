@@ -64,7 +64,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden overflow-y-auto relative flex flex-col" style={{
-      backgroundImage: `url('https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=1920&q=90&fit=crop')`,
+      backgroundImage: `url('https://res.cloudinary.com/u1malbew/image/upload/v1783600335/photo-1558769132-cb1aea458c5e_nicufi.jpg')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }}>

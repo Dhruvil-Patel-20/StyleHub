@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart
+} from 'recharts';
+
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -140,7 +145,7 @@ export default function AdminPanelPage() {
         return;
       }
       const refundAmount = Number(item.price || 0) * Number(item.quantity || 1);
-      
+
       await api.put(`/orders/${orderId}/return/refund`, { itemIndexes: [itemIndex], refundAmount });
       toast.success('Refund processed');
       await refreshReturnRequests();
@@ -154,6 +159,66 @@ export default function AdminPanelPage() {
   const pendingOrders = orders.filter(o => o.status === 'pending').length;
   const pendingReturns = returnRequests.reduce((sum, o) => sum + (o.return_requests?.filter(i => i.return_status === 'requested' || (!i.return_status && i.return_requested)).length || 0), 0);
   const lowStockProducts = products.filter(p => p.stock <= 5).length;
+
+  const getRevenueAndOrdersData = () => {
+    const dateMap = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      dateMap[label] = { Revenue: 0, Orders: 0 };
+    }
+    orders.forEach(o => {
+      const label = new Date(o.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      if (dateMap[label] !== undefined) {
+        if (o.is_paid && o.return_status !== 'refunded') {
+          dateMap[label].Revenue += Number(o.total_price || 0);
+        }
+        dateMap[label].Orders += 1;
+      }
+    });
+    return Object.keys(dateMap).map(date => ({
+      date,
+      Revenue: parseFloat(dateMap[date].Revenue.toFixed(2)),
+      Orders: dateMap[date].Orders
+    }));
+  };
+
+  const getCategoryData = () => {
+    const catMap = {};
+    products.forEach(p => {
+      if (p.category) {
+        const cat = p.category.charAt(0).toUpperCase() + p.category.slice(1);
+        catMap[cat] = (catMap[cat] || 0) + 1;
+      }
+    });
+    return Object.keys(catMap).map(name => ({
+      name,
+      value: catMap[name]
+    })).sort((a, b) => b.value - a.value);
+  };
+
+  const getUserRoleData = () => {
+    const roleMap = { Client: 0, Seller: 0, Admin: 0 };
+    users.forEach(u => {
+      if (u.role) {
+        const role = u.role.charAt(0).toUpperCase() + u.role.slice(1);
+        if (roleMap[role] !== undefined) roleMap[role] += 1;
+        else roleMap[role] = 1;
+      }
+    });
+    return Object.keys(roleMap).map(name => ({
+      name,
+      value: roleMap[name]
+    })).filter(r => r.value > 0);
+  };
+
+  const CATEGORY_COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6B7280'];
+  const ROLE_COLORS = {
+    Client: '#10B981',
+    Seller: '#8B5CF6',
+    Admin: '#EF4444'
+  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -185,9 +250,8 @@ export default function AdminPanelPage() {
         <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
           {tabs.map(tab => (
             <button key={tab} onClick={() => { setActiveTab(tab); setSearch(''); }}
-              className={`px-5 py-3 font-medium capitalize text-sm border-b-2 transition whitespace-nowrap ${
-                activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-800'
-              }`}>
+              className={`px-5 py-3 font-medium capitalize text-sm border-b-2 transition whitespace-nowrap ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}>
               {tab}
             </button>
           ))}
@@ -203,9 +267,11 @@ export default function AdminPanelPage() {
                   <h2 className="text-2xl font-bold mt-2">StyleHub is running smoothly — here is your daily control center.</h2>
                   <p className="text-sm text-indigo-200 mt-2 max-w-2xl">Monitor fulfillment, inventory pressure, and account activity from one refined overview.</p>
                 </div>
-                <div className="rounded-xl bg-white/15 px-4 py-3 text-sm backdrop-blur">
-                  <p className="font-semibold">Today’s focus</p>
-                  <p className="text-indigo-200 mt-1">{pendingOrders} orders need attention</p>
+                <div className="rounded-xl border border-white/20 bg-white/30 px-4 py-3 text-sm shadow-lg backdrop-blur-lg">
+                  <p className="font-semibold text-white">Today's Focus</p>
+                  <p className="mt-1 text-white/90">
+                    {pendingOrders} orders need attention
+                  </p>
                 </div>
               </div>
             </div>
@@ -252,6 +318,89 @@ export default function AdminPanelPage() {
               </div>
             </div>
 
+            {/* Sales & Orders Chart */}
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Platform Sales & Order Volume (Last 7 Days)</h2>
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={getRevenueAndOrdersData()} margin={{ top: 10, right: -5, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorAdminRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }} />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    <Area yAxisId="left" type="monotone" dataKey="Revenue" fill="url(#colorAdminRev)" stroke="#4F46E5" strokeWidth={2} name="Revenue ($)" />
+                    <Line yAxisId="right" type="monotone" dataKey="Orders" stroke="#EC4899" strokeWidth={2.5} activeDot={{ r: 6 }} name="Orders Count" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Product Categories & User Roles */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Product Categories distribution */}
+              <div className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Products by Category</h2>
+                {getCategoryData().length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No products found</div>
+                ) : (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={getCategoryData()}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="48%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={3}
+                        >
+                          {getCategoryData().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(val) => [`${val} Products`, 'Count']} contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* User Roles Bar Chart */}
+              <div className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">User Accounts by Role</h2>
+                {getUserRoleData().length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-gray-400 text-sm">No user data available</div>
+                ) : (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={getUserRoleData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                        <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <Tooltip cursor={{ fill: '#F3F4F6' }} contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }} />
+                        <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} maxBarSize={45} name="Total Users">
+                          {getUserRoleData().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={ROLE_COLORS[entry.name] || '#3B82F6'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl shadow p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-800">Recent Orders</h2>
@@ -272,7 +421,7 @@ export default function AdminPanelPage() {
                         <td className="px-4 py-3 font-mono text-xs">{o.id.slice(0, 8)}...</td>
                         <td className="px-4 py-3">{o.users?.name || '—'}</td>
                         <td className="px-4 py-3 font-semibold">${o.total_price.toFixed(2)}</td>
-      <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[getDisplayStatus(o)]}`}>{getDisplayStatus(o)}</span></td>
+                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[getDisplayStatus(o)]}`}>{getDisplayStatus(o)}</span></td>
                         <td className="px-4 py-3 text-gray-500">{new Date(o.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}
@@ -300,10 +449,9 @@ export default function AdminPanelPage() {
                         <td className="px-4 py-3 font-medium">{u.name}</td>
                         <td className="px-4 py-3 text-gray-500">{u.email}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            u.role === 'admin' ? 'bg-red-100 text-red-700' :
-                            u.role === 'seller' ? 'bg-purple-100 text-purple-700' :
-                            'bg-green-100 text-green-700'}`}>{u.role}</span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-red-100 text-red-700' :
+                              u.role === 'seller' ? 'bg-purple-100 text-purple-700' :
+                                'bg-green-100 text-green-700'}`}>{u.role}</span>
                         </td>
                         <td className="px-4 py-3 text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
                       </tr>
@@ -349,35 +497,34 @@ export default function AdminPanelPage() {
                         const canApprove = item.return_status === 'requested' || (!item.return_status && item.return_requested);
                         const canReject = canApprove;
                         return (
-                        <div key={item.itemIndex} className="rounded-xl border border-gray-200 p-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-                          <div className="flex gap-3">
-                            {item.image && <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded-lg flex-shrink-0" />}
-                            <div>
-                              <p className="font-semibold">{item.name}</p>
-                              {item.size && <p className="text-xs text-gray-400">Size: {item.size}</p>}
-                              <p className="text-sm text-gray-500">Qty: {item.quantity} · Refund: <span className="font-medium text-gray-700">${refundAmt}</span></p>
-                              <p className="text-sm text-gray-500">Reason: {item.return_reason || 'Not specified'}</p>
-                              <p className="text-sm text-gray-500">Status: <span className={`font-semibold capitalize ${
-                                item.return_status === 'approved' ? 'text-green-600' :
-                                item.return_status === 'rejected' ? 'text-red-600' :
-                                item.return_status === 'refunded' ? 'text-indigo-600' :
-                                'text-yellow-600'}`}>{item.return_status || 'requested'}</span></p>
-                              {item.return_admin_note && <p className="text-sm text-gray-500">Note: {item.return_admin_note}</p>}
-                              {item.requested_at && <p className="text-xs text-gray-400">Requested: {new Date(item.requested_at).toLocaleDateString()}</p>}
+                          <div key={item.itemIndex} className="rounded-xl border border-gray-200 p-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                            <div className="flex gap-3">
+                              {item.image && <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded-lg flex-shrink-0" />}
+                              <div>
+                                <p className="font-semibold">{item.name}</p>
+                                {item.size && <p className="text-xs text-gray-400">Size: {item.size}</p>}
+                                <p className="text-sm text-gray-500">Qty: {item.quantity} · Refund: <span className="font-medium text-gray-700">${refundAmt}</span></p>
+                                <p className="text-sm text-gray-500">Reason: {item.return_reason || 'Not specified'}</p>
+                                <p className="text-sm text-gray-500">Status: <span className={`font-semibold capitalize ${item.return_status === 'approved' ? 'text-green-600' :
+                                    item.return_status === 'rejected' ? 'text-red-600' :
+                                      item.return_status === 'refunded' ? 'text-indigo-600' :
+                                        'text-yellow-600'}`}>{item.return_status || 'requested'}</span></p>
+                                {item.return_admin_note && <p className="text-sm text-gray-500">Note: {item.return_admin_note}</p>}
+                                {item.requested_at && <p className="text-xs text-gray-400">Requested: {new Date(item.requested_at).toLocaleDateString()}</p>}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 justify-end items-start">
+                              <button onClick={() => handleApproveReturn(order.id, item.itemIndex)} disabled={!canApprove} className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">Approve</button>
+                              <button onClick={() => handleRejectReturn(order.id, item.itemIndex)} disabled={!canReject} className="text-xs bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">Reject</button>
+                              <button
+                                onClick={() => handleRefundReturn(order.id, item.itemIndex)}
+                                disabled={!canRefund}
+                                title={!canRefund ? 'Approve the return first before processing refund' : ''}
+                                className="text-xs bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                                Process Refund ${refundAmt}
+                              </button>
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-2 justify-end items-start">
-                            <button onClick={() => handleApproveReturn(order.id, item.itemIndex)} disabled={!canApprove} className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">Approve</button>
-                            <button onClick={() => handleRejectReturn(order.id, item.itemIndex)} disabled={!canReject} className="text-xs bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">Reject</button>
-                            <button
-                              onClick={() => handleRefundReturn(order.id, item.itemIndex)}
-                              disabled={!canRefund}
-                              title={!canRefund ? 'Approve the return first before processing refund' : ''}
-                              className="text-xs bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                              Process Refund ${refundAmt}
-                            </button>
-                          </div>
-                        </div>
                         );
                       })}
                     </div>
@@ -450,10 +597,9 @@ export default function AdminPanelPage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">{p.sub_category || '—'}</td>
                       <td className="px-4 py-3 font-semibold">${p.price.toFixed(2)}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          p.stock > 20 ? 'bg-green-100 text-green-700' :
-                          p.stock > 5 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'}`}>{p.stock}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.stock > 20 ? 'bg-green-100 text-green-700' :
+                            p.stock > 5 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'}`}>{p.stock}</span>
                       </td>
                       <td className="px-4 py-3">
                         {p.is_returnable === true
@@ -499,41 +645,41 @@ export default function AdminPanelPage() {
                   {orders
                     .filter(o => o.id.includes(search) || o.users?.name?.toLowerCase().includes(search.toLowerCase()))
                     .map(o => (
-                    <tr key={o.id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs">{o.id.slice(0, 8)}...</td>
-                      <td className="px-4 py-3">{o.users?.name || '—'}<br/><span className="text-xs text-gray-400">{o.users?.email}</span></td>
-                      <td className="px-4 py-3">{o.items.length}</td>
-                      <td className="px-4 py-3 font-semibold">${o.total_price.toFixed(2)}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-gray-700">
-                          {o.payment_method === 'stripe' ? '💳 Card' : o.payment_method === 'paypal' ? '🅿️ PayPal' : o.payment_method === 'cod' ? '💵 COD' : o.payment_method || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-gray-700">
-                          {o.delivery_method === 'standard' ? '📦 Standard' : o.delivery_method === 'express' ? '🚀 Express' : o.delivery_method === 'nextday' ? '⚡ Next-Day' : o.delivery_method || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${o.is_paid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {o.is_paid ? 'Paid' : 'Unpaid'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select value={getDisplayStatus(o)} onChange={e => handleOrderStatus(o.id, e.target.value)}
-                          className={`px-2 py-1 rounded text-xs font-medium border-0 cursor-pointer ${statusColors[getDisplayStatus(o)]}`}>
-                          {['pending','processing','shipped','delivered','cancelled'].map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                          {getDisplayStatus(o) === 'returned' && <option value="returned">returned</option>}
-                        </select>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <Link to={`/orders/${o.id}`} className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-xs hover:bg-indigo-200">View</Link>
-                      </td>
-                    </tr>
-                  ))}
+                      <tr key={o.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-xs">{o.id.slice(0, 8)}...</td>
+                        <td className="px-4 py-3">{o.users?.name || '—'}<br /><span className="text-xs text-gray-400">{o.users?.email}</span></td>
+                        <td className="px-4 py-3">{o.items.length}</td>
+                        <td className="px-4 py-3 font-semibold">${o.total_price.toFixed(2)}</td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-gray-700">
+                            {o.payment_method === 'stripe' ? '💳 Card' : o.payment_method === 'paypal' ? '🅿️ PayPal' : o.payment_method === 'cod' ? '💵 COD' : o.payment_method || '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-gray-700">
+                            {o.delivery_method === 'standard' ? '📦 Standard' : o.delivery_method === 'express' ? '🚀 Express' : o.delivery_method === 'nextday' ? '⚡ Next-Day' : o.delivery_method || '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${o.is_paid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {o.is_paid ? 'Paid' : 'Unpaid'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <select value={getDisplayStatus(o)} onChange={e => handleOrderStatus(o.id, e.target.value)}
+                            className={`px-2 py-1 rounded text-xs font-medium border-0 cursor-pointer ${statusColors[getDisplayStatus(o)]}`}>
+                            {['pending', 'processing', 'shipped', 'delivered', 'cancelled'].map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                            {getDisplayStatus(o) === 'returned' && <option value="returned">returned</option>}
+                          </select>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{new Date(o.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <Link to={`/orders/${o.id}`} className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-xs hover:bg-indigo-200">View</Link>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
               {orders.length === 0 && <p className="text-center text-gray-500 py-8">No orders found</p>}
@@ -559,26 +705,25 @@ export default function AdminPanelPage() {
                   {users
                     .filter(u => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
                     .map(u => (
-                    <tr key={u.id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">{u.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{u.email}</td>
-                      <td className="px-4 py-3">
-                        <select value={u.role} onChange={e => handleUserRole(u.id, e.target.value)}
-                          className={`px-2 py-1 rounded text-xs font-medium border-0 cursor-pointer ${
-                            u.role === 'admin' ? 'bg-red-100 text-red-700' :
-                            u.role === 'seller' ? 'bg-purple-100 text-purple-700' :
-                            'bg-green-100 text-green-700'}`}>
-                          <option value="client">client</option>
-                          <option value="seller">seller</option>
-                          <option value="admin">admin</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <button onClick={() => handleDeleteUser(u.id)} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs hover:bg-red-200">Delete</button>
-                      </td>
-                    </tr>
-                  ))}
+                      <tr key={u.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium">{u.name}</td>
+                        <td className="px-4 py-3 text-gray-500">{u.email}</td>
+                        <td className="px-4 py-3">
+                          <select value={u.role} onChange={e => handleUserRole(u.id, e.target.value)}
+                            className={`px-2 py-1 rounded text-xs font-medium border-0 cursor-pointer ${u.role === 'admin' ? 'bg-red-100 text-red-700' :
+                                u.role === 'seller' ? 'bg-purple-100 text-purple-700' :
+                                  'bg-green-100 text-green-700'}`}>
+                            <option value="client">client</option>
+                            <option value="seller">seller</option>
+                            <option value="admin">admin</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => handleDeleteUser(u.id)} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs hover:bg-red-200">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
               {users.length === 0 && <p className="text-center text-gray-500 py-8">No users found</p>}
@@ -617,10 +762,9 @@ export default function AdminPanelPage() {
                       <td className="px-4 py-3 capitalize">{p.category}</td>
                       <td className="px-4 py-3 font-bold">{p.stock}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          p.stock > 20 ? 'bg-green-100 text-green-700' :
-                          p.stock > 5 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.stock > 20 ? 'bg-green-100 text-green-700' :
+                            p.stock > 5 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'}`}>
                           {p.stock > 20 ? 'In Stock' : p.stock > 5 ? 'Low Stock' : 'Critical'}
                         </span>
                       </td>
